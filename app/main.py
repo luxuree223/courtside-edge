@@ -132,7 +132,7 @@ async def lifespan(app):
         try:await _collection_task
         except asyncio.CancelledError:pass
 
-app=FastAPI(title='Courtside Edge',version='0.18.0',lifespan=lifespan)
+app=FastAPI(title='Courtside Edge',version='0.18.2',lifespan=lifespan)
 app.mount('/static',StaticFiles(directory=str(ROOT/'static')),name='static')
 
 @app.middleware('http')
@@ -207,7 +207,7 @@ async def next_team_game(sport:str,team:str,refresh:bool=False):
 def index():return FileResponse(ROOT/'static'/'index.html',headers={'Cache-Control':'no-store'})
 
 @app.get('/api/health')
-def health(request:Request):return {'ok':True,'version':'0.18.0',**({'data':db.data_counts()} if not cloud_accounts.enabled() and (request.state.account or not accounts.configured()) else {})}
+def health(request:Request):return {'ok':True,'version':'0.18.2',**({'data':db.data_counts()} if not cloud_accounts.enabled() and (request.state.account or not accounts.configured()) else {})}
 
 @app.get('/api/cloud/config')
 def cloud_config():
@@ -273,10 +273,17 @@ class SettingsIn(BaseModel):
     starting_bankroll:float=Field(ge=0)
     unit_size:float=Field(gt=0)
     timezone:str='America/Chicago'
+    current_bankroll:float|None=Field(default=None,ge=0,le=1e12)
 
 @app.put('/api/settings')
 def settings_save(body:SettingsIn):
-    try:db.save_settings(body.model_dump())
+    try:
+        values=body.model_dump(exclude={'current_bankroll'})
+        if body.current_bankroll is not None:
+            if any(round(v,2)!=v for v in (body.current_bankroll,body.starting_bankroll,body.unit_size)):raise ValueError('Enter dollar amounts with no more than two decimal places.')
+            # A balance correction is separate from wins/losses and never edits bets.
+            values['bankroll_adjustment']=round(body.current_bankroll-body.starting_bankroll-db.bet_summary()['profit'],2)
+        db.save_settings(values)
     except ValueError as ex:raise HTTPException(400,str(ex))
     return db.get_settings()
 
@@ -441,8 +448,12 @@ async def _login_collection(plans):
                 _collection_status['message']='Verifying '+sport+' player positions against ESPN rosters…'
                 result=await position_index.refresh(sport)
                 _collection_status['errors'].extend(result['issues'][:10])
+        counts=db.data_counts()
+        _collection_status['failed']=bool(_collection_status['errors']) and not any(counts[s]['player_logs'] for s in ('NBA','NFL'))
+        _collection_status['outcome']='failed' if _collection_status['failed'] else 'partial' if _collection_status['errors'] else 'complete'
         _collection_status['message']='Sync complete' if not _collection_status['errors'] else 'Sync finished with source gaps. Review the details before researching.'
     except Exception as ex:
+        _collection_status['failed']=True;_collection_status['outcome']='failed'
         _collection_status['errors'].append(str(ex)[:180]);_collection_status['message']='Sync could not finish. Retry to complete the update.'
     finally:_collection_status['running']=False
 

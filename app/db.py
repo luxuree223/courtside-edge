@@ -169,13 +169,14 @@ def get_settings():
         return {r['key']: r['value'] for r in db.execute('SELECT * FROM settings')}
 
 def save_settings(values):
-    allowed = {'starting_bankroll', 'unit_size', 'timezone'}
+    allowed = {'starting_bankroll', 'unit_size', 'timezone', 'bankroll_adjustment'}
     if 'timezone' in values:
         from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
         try:ZoneInfo(values['timezone'])
         except (ZoneInfoNotFoundError,ValueError):raise ValueError('Choose a valid timezone')
     if 'starting_bankroll' in values and (float(values['starting_bankroll']) < 0 or not math.isfinite(float(values['starting_bankroll']))):
         raise ValueError('Invalid bankroll')
+    if 'bankroll_adjustment' in values and not math.isfinite(float(values['bankroll_adjustment'])):raise ValueError('Enter a valid balance adjustment.')
     if 'unit_size' in values and (float(values['unit_size']) <= 0 or not math.isfinite(float(values['unit_size']))):
         raise ValueError('Invalid unit size')
     with connect() as db:
@@ -189,6 +190,7 @@ def all_bets():
 def bet_summary():
     bets = all_bets()
     st=get_settings(); unit=float(st.get('unit_size','1')); starting=float(st.get('starting_bankroll','0'))
+    adjustment=float(st.get('bankroll_adjustment','0'))
     settled=[b for b in bets if b['status']!='pending']
     profit=sum(b['payout']-b['stake'] for b in settled)
     risk=sum(b['stake'] for b in settled)
@@ -201,11 +203,12 @@ def bet_summary():
     for b in sorted(settled,key=lambda x:(x['placed_at'],x['id'])):
         running += b['payout']-b['stake']
         trajectory.append({'date':b['placed_at'],'balance':round(running,2)})
-    return dict(starting_bankroll=starting, unit=unit, profit=round(profit,2),
+    if adjustment:trajectory.append({'date':datetime.datetime.now(datetime.timezone.utc).date().isoformat(),'balance':round(running+adjustment,2)})
+    return dict(starting_bankroll=starting, bankroll_adjustment=adjustment, unit=unit, profit=round(profit,2),
         units=round(profit/unit,3), settled_risk=round(risk,2),roi=round(profit/risk*100,1) if risk else 0,
         wins=wins, losses=losses, pushes=pushes, pending=sum(b['status']=='pending' for b in bets),
-        pending_risk=round(pending_risk,2), bankroll=round(starting+profit,2),
-        available=round(starting+profit-pending_risk,2), trajectory=trajectory,
+        pending_risk=round(pending_risk,2), bankroll=round(starting+profit+adjustment,2),
+        available=round(starting+profit+adjustment-pending_risk,2), trajectory=trajectory,
         cashouts=sum(b['status']=='cashed_out' for b in bets))
 
 def upsert_bet(data, bet_id=None):

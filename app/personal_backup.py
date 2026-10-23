@@ -12,6 +12,7 @@ class Settings(BaseModel):
     model_config=ConfigDict(extra='forbid',allow_inf_nan=False)
     starting_bankroll:float=Field(ge=0,le=1e12)
     unit_size:float=Field(ge=.01,le=1e6)
+    bankroll_adjustment:float=0
     timezone:str=Field(max_length=80)
     @field_validator('timezone')
     @classmethod
@@ -58,7 +59,7 @@ def validate(data):
 
 def capture(connection=None):
     def read(c):
-        settings={r['key']:r['value'] for r in c.execute("SELECT key,value FROM settings WHERE key IN ('starting_bankroll','unit_size','timezone')")}
+        settings={r['key']:r['value'] for r in c.execute("SELECT key,value FROM settings WHERE key IN ('starting_bankroll','unit_size','timezone','bankroll_adjustment')")}
         bets=[{k:dict(r)[k] for k in FIELDS} for r in c.execute('SELECT * FROM bets ORDER BY id')]
         return {'format':'courtside-edge-personal-backup','version':1,'saved_at':dt.datetime.now(dt.timezone.utc).isoformat(),'settings':Settings.model_validate(settings).model_dump(),'bets':bets}
     if connection is not None:return read(connection)

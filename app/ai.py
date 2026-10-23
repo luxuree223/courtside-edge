@@ -40,6 +40,13 @@ def config_path(): return db.database_path().parent/'ai-config.json'
 def key_path(): return db.database_path().parent/'openai-key.dpapi'
 
 
+def shared_connection_enabled():
+    override=os.environ.get('EDGE_SHARED_AI_KEY')
+    if override is not None:return override=='1'
+    try:return json.loads((db.DB_PATH.parent/'ai-config.json').read_text(encoding='utf-8')).get('share_with_accounts') is True
+    except (OSError,ValueError):return False
+
+
 def protect(raw, decrypt=False):
     if os.name != 'nt': raise ValueError('Set OPENAI_API_KEY in the server environment on this operating system.')
     from ctypes import wintypes
@@ -60,20 +67,27 @@ def protect(raw, decrypt=False):
 
 
 def credentials():
+    shared=shared_connection_enabled()
+    folder=db.DB_PATH.parent if shared else db.database_path().parent
     model=os.environ.get('OPENAI_MODEL') or AI_MODEL
-    try:model=json.loads(config_path().read_text(encoding='utf-8')).get('model') or model
+    try:model=json.loads((folder/'ai-config.json').read_text(encoding='utf-8')).get('model') or model
     except (OSError,ValueError):pass
-    key=os.environ.get('OPENAI_API_KEY','').strip() if db.PROFILE_PATH.get() is None or os.environ.get('EDGE_SHARED_PROVIDER_KEYS')=='1' else ''
-    if not key and key_path().exists():key=protect(key_path().read_bytes(),decrypt=True).decode('utf-8')
+    key=os.environ.get('OPENAI_API_KEY','').strip() if shared or db.PROFILE_PATH.get() is None or os.environ.get('EDGE_SHARED_PROVIDER_KEYS')=='1' else ''
+    saved_key=folder/'openai-key.dpapi'
+    if not key and saved_key.exists():key=protect(saved_key.read_bytes(),decrypt=True).decode('utf-8')
     return key,model
 
 
 def status():
-    try:key,model=credentials();return {'configured':bool(key),'model':model,'environment_key':bool(os.environ.get('OPENAI_API_KEY')) and (db.PROFILE_PATH.get() is None or os.environ.get('EDGE_SHARED_PROVIDER_KEYS')=='1')}
-    except ValueError:return {'configured':False,'model':AI_MODEL,'error':'Saved key belongs to another Windows account. Enter your key again.'}
+    shared=shared_connection_enabled()
+    try:
+        key,model=credentials()
+        return {'configured':bool(key),'model':model,'shared_managed':shared,'shared_connection':shared and bool(key),'environment_key':bool(os.environ.get('OPENAI_API_KEY')) and (shared or db.PROFILE_PATH.get() is None or os.environ.get('EDGE_SHARED_PROVIDER_KEYS')=='1')}
+    except ValueError:return {'configured':False,'model':AI_MODEL,'shared_managed':shared,'shared_connection':False,'error':'The server’s saved AI connection could not be opened.' if shared else 'Saved key belongs to another Windows account. Enter your key again.'}
 
 
 def configure(key,model):
+    if shared_connection_enabled() and db.PROFILE_PATH.get() is not None:raise ValueError('This AI connection is managed by the site owner. Account settings cannot replace it.')
     if not re.fullmatch(r'[a-zA-Z0-9._:-]{1,100}',model):raise ValueError('Enter a valid OpenAI model name.')
     key=key.strip()
     folder=db.database_path().parent;folder.mkdir(exist_ok=True)
@@ -82,7 +96,9 @@ def configure(key,model):
         encrypted=protect(key.encode('utf-8'))
         temporary=key_path().with_suffix('.tmp');temporary.write_bytes(encrypted);temporary.replace(key_path())
     elif not status()['configured']:raise ValueError('Enter your API key first.')
-    config_path().write_text(json.dumps({'model':model}),encoding='utf-8')
+    config={'model':model}
+    if shared_connection_enabled():config['share_with_accounts']=True
+    config_path().write_text(json.dumps(config),encoding='utf-8')
     return status()
 
 

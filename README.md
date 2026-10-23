@@ -2,7 +2,11 @@
 
 NBA/NFL game research and a personal betting tracker, with mobile layouts.
 
-Create your own account and choose a unit size. A unit is your standard bet amount; the signup screen explains it with an example. Accounts have separate bets and money settings. Save JSON Backup downloads a private device copy; Load JSON Backup previews and restores it after sign-in. A JSON file does not contain a password or automatically sign you in.
+The homepage opens without signing in and shows the public slate. Use the obvious Sign in / Create account buttons when ready. Create an account with a username or email, a password and a unit size. Usernames are case insensitive, use 3–30 letters, numbers or underscores, and have no recovery email. Existing email accounts continue to work. A unit is your standard bet amount; signup explains it with an example. Accounts have separate bets and money settings. Save JSON Backup downloads a private device copy; Load JSON Backup previews and restores it after sign-in. A JSON file does not contain a password or automatically sign you in.
+
+## Game and player research
+
+The player finder has a Back to full slate arrow. Selecting a game displays ESPN players and either this season’s regular-season averages or that game’s recorded stats. Click a player for five recent-game boxes and any saved props for that exact game, including line, odds, book and observation time. Fewer than five recorded games leave labeled empty boxes; earlier seasons are not substituted. NBA game boxes show points, rebounds and assists. NFL boxes show passing yards/TDs for QBs, receiving yards/targets/TDs for WRs and TEs, and rushing yards/TDs for RBs. Rosters do not certify participation. Missing stats and unavailable sportsbook prices remain labeled rather than estimated. Live games refresh while their research page is open.
 
 ## Use it while your computer is off
 

@@ -22,8 +22,8 @@ For this shared website, continue at section 2 using the existing project. The n
 1. Upload only the clean source to a GitHub repository using **UPLOAD_TO_GITHUB.md**.
 2. Open https://dashboard.render.com and create a **Blueprint** from that repository. Review the included `render.yaml`: Python web service, **Free** plan, no paid disk. Do not select a paid upgrade.
 3. Review the configured public Firebase values: `EDGE_FIREBASE_PROJECT_ID`, `EDGE_FIREBASE_API_KEY`, `EDGE_FIREBASE_APP_ID`. They are already supplied for `courtsideedge-betting`; replace them only when deploying against another project.
-4. Deploy. The Python runtime version comes from `.python-version`; Render installs `requirements.txt`. One worker is intentional. Keep the backend behind Render's proxy; the supplied forwarded-header setting assumes Render is the only public ingress.
-5. Copy the generated HTTPS app URL. Add its hostname to Firebase Authentication's authorized domains. Open that URL on a phone to create an account with an email, password and required unit size.
+4. Deploy. The Python runtime version comes from `.python-version`; Render installs `requirements.txt`. One worker is intentional. The start command retains Uvicorn’s default restrictive proxy trust; the deployed Render service passed same-origin request and secure-cookie checks with this configuration.
+5. Open the HTTPS app URL on a phone. Its public homepage has Sign in and Create account buttons; visitors can use a username or email, a password and a required unit size. Email/Password remains the Firebase provider: username-only accounts use a deterministic internal address, never a published mapping to personal emails. Username-only accounts do not have email-based password recovery. Add the host to Firebase authorized domains before adding domain-dependent OAuth or email-action features later.
 
 There is no invitation requirement. Every visitor can create their own account. Firebase rules restrict each tracker to its authenticated user. No one is given access to the local owner's account or API keys.
 

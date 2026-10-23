@@ -58,7 +58,7 @@ async function runLoginSync(){
  const generation=loginSyncRequest;
  try{
   let status=await req('/data/login-sync',{method:'POST'});
-  while(generation===loginSyncRequest){paintLoginSync(status);if(!status.running){if(status.failed!==true&&status.outcome!=='failed'){if(status.errors?.length)notify('Sync finished. Some source records are unavailable; those gaps stay labeled.');loginSyncResolve?.();loginSyncResolve=null}return}await new Promise(r=>setTimeout(r,1200));status=await req('/data/collection-status')}
+  while(generation===loginSyncRequest){paintLoginSync(status);if(!status.running){if(status.failed!==true&&status.outcome!=='failed'){if(status.errors?.length)notify('Sync finished. Some source records are unavailable; those gaps stay labeled.');if(typeof clearPositionCache==='function')clearPositionCache();loginSyncResolve?.();loginSyncResolve=null}return}await new Promise(r=>setTimeout(r,1200));status=await req('/data/collection-status')}
  }catch(error){if(generation===loginSyncRequest)paintLoginSync({running:false,failed:true,errors:[error.message]},'The stats update could not finish. Retry, or open the app with the records currently available.')}
 }
 const beginLoginSync=loginSyncGate;

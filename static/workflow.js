@@ -48,12 +48,12 @@ async function loadSelectableGames(force=false){
 }
 function storedStat(stat){try{return JSON.parse(localStorage.getItem('courtside-lines-'+state.sport)||'{}')[stat]}catch{return undefined}}
 function rememberStat(stat,value){if(!Number.isFinite(value))return;try{const values=JSON.parse(localStorage.getItem('courtside-lines-'+state.sport)||'{}');values[stat]=value;localStorage.setItem('courtside-lines-'+state.sport,JSON.stringify(values))}catch{}}
-function saveFinder(){try{localStorage.setItem('courtside-finder-'+state.sport,JSON.stringify({...state.filters,finder_version:2}));rememberStat(state.filters.stat,state.filters.threshold)}catch{}}
+function saveFinder(){try{localStorage.setItem('courtside-finder-'+state.sport,JSON.stringify({...state.filters,player:'',finder_version:2}));rememberStat(state.filters.stat,state.filters.threshold)}catch{}}
 function restoreFinder(sport){
  const stat=sport==='NBA'?'pts':'rec_yds';
  let saved={};try{saved=JSON.parse(localStorage.getItem('courtside-finder-'+sport)||'{}')}catch{}
  if(saved.finder_version!==2){saved.threshold='';saved.last=''}
- state.filters={stat,threshold:'',last:'',min_rate:50,max_rate:100,venue:'all',season_type:'regular',min_minutes:0,price:'',comparison:'at_least',opponent:'',season:'',before:'',...saved};
+ state.filters={stat,threshold:'',last:'',min_rate:50,max_rate:100,venue:'all',season_type:'regular',min_minutes:0,price:'',comparison:'at_least',opponent:'',season:'',before:'',...saved,player:''};
  if(!Object.hasOwn(statDefaults[sport],state.filters.stat)||(state.filters.stat==='targets'&&!state.filters.include_research)){state.filters.stat=stat;state.filters.threshold=''}
 }
 async function refreshSchedule(){

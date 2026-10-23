@@ -1,5 +1,5 @@
 /* Team rankings: production beside opponent production, with no implied projection. */
-let rankSport='NFL',rankSeason=null,rankType='regular',rankMetric='pass_yds',rankView='offense',rankOrder='most';
+let rankSport='NBA',rankSeason=null,rankType='regular',rankMetric='pts',rankView='offense',rankOrder='most';
 let rankConfig=null,rankData=null,rankLoading=false,rankError='',rankTeam='',rankOpponent='',rankRequest=0;
 const rankCache=new Map();
 let highlightCategory='all';
@@ -94,7 +94,8 @@ async function loadRankings(force=false){
    if(!rankConfig)rankConfig=await req('/rankings/config');
    if(request!==rankRequest)return;
    if(!rankSeason)rankSeason=rankConfig.defaults[rankSport];
-   if(typeof loadPositionRanks==='function')loadPositionRanks();
+   if(typeof loadPositionRanks==='function'&&state.page==='value')loadPositionRanks(force);
+   if(state.page==='value')return;
    const key=rankKey(),params=new URLSearchParams({sport:rankSport,season:rankSeason,season_type:rankType,metric:rankMetric,view:rankView,order:rankOrder});
    if(rankData&&(rankData.sport!==rankSport||rankData.season!==rankSeason||rankData.season_type!==rankType))rankData=null;
    let data=rankCache.get(key);

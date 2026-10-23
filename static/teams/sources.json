@@ -1,0 +1,312 @@
+{
+  "NFL:CAR": {
+    "name": "Carolina Panthers",
+    "source": "https://a.espncdn.com/i/teamlogos/nfl/500/car.png",
+    "directory": "https://site.api.espn.com/apis/site/v2/sports/football/nfl/teams?limit=1000"
+  },
+  "NFL:BUF": {
+    "name": "Buffalo Bills",
+    "source": "https://a.espncdn.com/i/teamlogos/nfl/500/buf.png",
+    "directory": "https://site.api.espn.com/apis/site/v2/sports/football/nfl/teams?limit=1000"
+  },
+  "NFL:BAL": {
+    "name": "Baltimore Ravens",
+    "source": "https://a.espncdn.com/i/teamlogos/nfl/500/bal.png",
+    "directory": "https://site.api.espn.com/apis/site/v2/sports/football/nfl/teams?limit=1000"
+  },
+  "NFL:ATL": {
+    "name": "Atlanta Falcons",
+    "source": "https://a.espncdn.com/i/teamlogos/nfl/500/atl.png",
+    "directory": "https://site.api.espn.com/apis/site/v2/sports/football/nfl/teams?limit=1000"
+  },
+  "NFL:ARI": {
+    "name": "Arizona Cardinals",
+    "source": "https://a.espncdn.com/i/teamlogos/nfl/500/ari.png",
+    "directory": "https://site.api.espn.com/apis/site/v2/sports/football/nfl/teams?limit=1000"
+  },
+  "NFL:CHI": {
+    "name": "Chicago Bears",
+    "source": "https://a.espncdn.com/i/teamlogos/nfl/500/chi.png",
+    "directory": "https://site.api.espn.com/apis/site/v2/sports/football/nfl/teams?limit=1000"
+  },
+  "NFL:DAL": {
+    "name": "Dallas Cowboys",
+    "source": "https://a.espncdn.com/i/teamlogos/nfl/500/dal.png",
+    "directory": "https://site.api.espn.com/apis/site/v2/sports/football/nfl/teams?limit=1000"
+  },
+  "NFL:CLE": {
+    "name": "Cleveland Browns",
+    "source": "https://a.espncdn.com/i/teamlogos/nfl/500/cle.png",
+    "directory": "https://site.api.espn.com/apis/site/v2/sports/football/nfl/teams?limit=1000"
+  },
+  "NFL:DET": {
+    "name": "Detroit Lions",
+    "source": "https://a.espncdn.com/i/teamlogos/nfl/500/det.png",
+    "directory": "https://site.api.espn.com/apis/site/v2/sports/football/nfl/teams?limit=1000"
+  },
+  "NFL:DEN": {
+    "name": "Denver Broncos",
+    "source": "https://a.espncdn.com/i/teamlogos/nfl/500/den.png",
+    "directory": "https://site.api.espn.com/apis/site/v2/sports/football/nfl/teams?limit=1000"
+  },
+  "NFL:GB": {
+    "name": "Green Bay Packers",
+    "source": "https://a.espncdn.com/i/teamlogos/nfl/500/gb.png",
+    "directory": "https://site.api.espn.com/apis/site/v2/sports/football/nfl/teams?limit=1000"
+  },
+  "NFL:CIN": {
+    "name": "Cincinnati Bengals",
+    "source": "https://a.espncdn.com/i/teamlogos/nfl/500/cin.png",
+    "directory": "https://site.api.espn.com/apis/site/v2/sports/football/nfl/teams?limit=1000"
+  },
+  "NFL:HOU": {
+    "name": "Houston Texans",
+    "source": "https://a.espncdn.com/i/teamlogos/nfl/500/hou.png",
+    "directory": "https://site.api.espn.com/apis/site/v2/sports/football/nfl/teams?limit=1000"
+  },
+  "NFL:JAX": {
+    "name": "Jacksonville Jaguars",
+    "source": "https://a.espncdn.com/i/teamlogos/nfl/500/jax.png",
+    "directory": "https://site.api.espn.com/apis/site/v2/sports/football/nfl/teams?limit=1000"
+  },
+  "NFL:IND": {
+    "name": "Indianapolis Colts",
+    "source": "https://a.espncdn.com/i/teamlogos/nfl/500/ind.png",
+    "directory": "https://site.api.espn.com/apis/site/v2/sports/football/nfl/teams?limit=1000"
+  },
+  "NFL:KC": {
+    "name": "Kansas City Chiefs",
+    "source": "https://a.espncdn.com/i/teamlogos/nfl/500/kc.png",
+    "directory": "https://site.api.espn.com/apis/site/v2/sports/football/nfl/teams?limit=1000"
+  },
+  "NFL:LAR": {
+    "name": "Los Angeles Rams",
+    "source": "https://a.espncdn.com/i/teamlogos/nfl/500/lar.png",
+    "directory": "https://site.api.espn.com/apis/site/v2/sports/football/nfl/teams?limit=1000"
+  },
+  "NFL:LAC": {
+    "name": "Los Angeles Chargers",
+    "source": "https://a.espncdn.com/i/teamlogos/nfl/500/lac.png",
+    "directory": "https://site.api.espn.com/apis/site/v2/sports/football/nfl/teams?limit=1000"
+  },
+  "NFL:MIA": {
+    "name": "Miami Dolphins",
+    "source": "https://a.espncdn.com/i/teamlogos/nfl/500/mia.png",
+    "directory": "https://site.api.espn.com/apis/site/v2/sports/football/nfl/teams?limit=1000"
+  },
+  "NFL:NE": {
+    "name": "New England Patriots",
+    "source": "https://a.espncdn.com/i/teamlogos/nfl/500/ne.png",
+    "directory": "https://site.api.espn.com/apis/site/v2/sports/football/nfl/teams?limit=1000"
+  },
+  "NFL:LV": {
+    "name": "Las Vegas Raiders",
+    "source": "https://a.espncdn.com/i/teamlogos/nfl/500/lv.png",
+    "directory": "https://site.api.espn.com/apis/site/v2/sports/football/nfl/teams?limit=1000"
+  },
+  "NFL:MIN": {
+    "name": "Minnesota Vikings",
+    "source": "https://a.espncdn.com/i/teamlogos/nfl/500/min.png",
+    "directory": "https://site.api.espn.com/apis/site/v2/sports/football/nfl/teams?limit=1000"
+  },
+  "NFL:NO": {
+    "name": "New Orleans Saints",
+    "source": "https://a.espncdn.com/i/teamlogos/nfl/500/no.png",
+    "directory": "https://site.api.espn.com/apis/site/v2/sports/football/nfl/teams?limit=1000"
+  },
+  "NFL:NYG": {
+    "name": "New York Giants",
+    "source": "https://a.espncdn.com/i/teamlogos/nfl/500/nyg.png",
+    "directory": "https://site.api.espn.com/apis/site/v2/sports/football/nfl/teams?limit=1000"
+  },
+  "NFL:SEA": {
+    "name": "Seattle Seahawks",
+    "source": "https://a.espncdn.com/i/teamlogos/nfl/500/sea.png",
+    "directory": "https://site.api.espn.com/apis/site/v2/sports/football/nfl/teams?limit=1000"
+  },
+  "NFL:SF": {
+    "name": "San Francisco 49ers",
+    "source": "https://a.espncdn.com/i/teamlogos/nfl/500/sf.png",
+    "directory": "https://site.api.espn.com/apis/site/v2/sports/football/nfl/teams?limit=1000"
+  },
+  "NFL:PHI": {
+    "name": "Philadelphia Eagles",
+    "source": "https://a.espncdn.com/i/teamlogos/nfl/500/phi.png",
+    "directory": "https://site.api.espn.com/apis/site/v2/sports/football/nfl/teams?limit=1000"
+  },
+  "NFL:TB": {
+    "name": "Tampa Bay Buccaneers",
+    "source": "https://a.espncdn.com/i/teamlogos/nfl/500/tb.png",
+    "directory": "https://site.api.espn.com/apis/site/v2/sports/football/nfl/teams?limit=1000"
+  },
+  "NFL:PIT": {
+    "name": "Pittsburgh Steelers",
+    "source": "https://a.espncdn.com/i/teamlogos/nfl/500/pit.png",
+    "directory": "https://site.api.espn.com/apis/site/v2/sports/football/nfl/teams?limit=1000"
+  },
+  "NFL:NYJ": {
+    "name": "New York Jets",
+    "source": "https://a.espncdn.com/i/teamlogos/nfl/500/nyj.png",
+    "directory": "https://site.api.espn.com/apis/site/v2/sports/football/nfl/teams?limit=1000"
+  },
+  "NFL:TEN": {
+    "name": "Tennessee Titans",
+    "source": "https://a.espncdn.com/i/teamlogos/nfl/500/ten.png",
+    "directory": "https://site.api.espn.com/apis/site/v2/sports/football/nfl/teams?limit=1000"
+  },
+  "NFL:WAS": {
+    "name": "Washington Commanders",
+    "source": "https://a.espncdn.com/i/teamlogos/nfl/500/wsh.png",
+    "directory": "https://site.api.espn.com/apis/site/v2/sports/football/nfl/teams?limit=1000"
+  },
+  "NBA:ATL": {
+    "name": "Atlanta Hawks",
+    "source": "https://a.espncdn.com/i/teamlogos/nba/500/atl.png",
+    "directory": "https://site.api.espn.com/apis/site/v2/sports/basketball/nba/teams?limit=1000"
+  },
+  "NBA:BOS": {
+    "name": "Boston Celtics",
+    "source": "https://a.espncdn.com/i/teamlogos/nba/500/bos.png",
+    "directory": "https://site.api.espn.com/apis/site/v2/sports/basketball/nba/teams?limit=1000"
+  },
+  "NBA:BKN": {
+    "name": "Brooklyn Nets",
+    "source": "https://a.espncdn.com/i/teamlogos/nba/500/bkn.png",
+    "directory": "https://site.api.espn.com/apis/site/v2/sports/basketball/nba/teams?limit=1000"
+  },
+  "NBA:CHI": {
+    "name": "Chicago Bulls",
+    "source": "https://a.espncdn.com/i/teamlogos/nba/500/chi.png",
+    "directory": "https://site.api.espn.com/apis/site/v2/sports/basketball/nba/teams?limit=1000"
+  },
+  "NBA:CLE": {
+    "name": "Cleveland Cavaliers",
+    "source": "https://a.espncdn.com/i/teamlogos/nba/500/cle.png",
+    "directory": "https://site.api.espn.com/apis/site/v2/sports/basketball/nba/teams?limit=1000"
+  },
+  "NBA:DEN": {
+    "name": "Denver Nuggets",
+    "source": "https://a.espncdn.com/i/teamlogos/nba/500/den.png",
+    "directory": "https://site.api.espn.com/apis/site/v2/sports/basketball/nba/teams?limit=1000"
+  },
+  "NBA:DAL": {
+    "name": "Dallas Mavericks",
+    "source": "https://a.espncdn.com/i/teamlogos/nba/500/dal.png",
+    "directory": "https://site.api.espn.com/apis/site/v2/sports/basketball/nba/teams?limit=1000"
+  },
+  "NBA:HOU": {
+    "name": "Houston Rockets",
+    "source": "https://a.espncdn.com/i/teamlogos/nba/500/hou.png",
+    "directory": "https://site.api.espn.com/apis/site/v2/sports/basketball/nba/teams?limit=1000"
+  },
+  "NBA:GS": {
+    "name": "Golden State Warriors",
+    "source": "https://a.espncdn.com/i/teamlogos/nba/500/gs.png",
+    "directory": "https://site.api.espn.com/apis/site/v2/sports/basketball/nba/teams?limit=1000"
+  },
+  "NBA:DET": {
+    "name": "Detroit Pistons",
+    "source": "https://a.espncdn.com/i/teamlogos/nba/500/det.png",
+    "directory": "https://site.api.espn.com/apis/site/v2/sports/basketball/nba/teams?limit=1000"
+  },
+  "NBA:IND": {
+    "name": "Indiana Pacers",
+    "source": "https://a.espncdn.com/i/teamlogos/nba/500/ind.png",
+    "directory": "https://site.api.espn.com/apis/site/v2/sports/basketball/nba/teams?limit=1000"
+  },
+  "NBA:LAC": {
+    "name": "LA Clippers",
+    "source": "https://a.espncdn.com/i/teamlogos/nba/500/lac.png",
+    "directory": "https://site.api.espn.com/apis/site/v2/sports/basketball/nba/teams?limit=1000"
+  },
+  "NBA:MIA": {
+    "name": "Miami Heat",
+    "source": "https://a.espncdn.com/i/teamlogos/nba/500/mia.png",
+    "directory": "https://site.api.espn.com/apis/site/v2/sports/basketball/nba/teams?limit=1000"
+  },
+  "NBA:MEM": {
+    "name": "Memphis Grizzlies",
+    "source": "https://a.espncdn.com/i/teamlogos/nba/500/mem.png",
+    "directory": "https://site.api.espn.com/apis/site/v2/sports/basketball/nba/teams?limit=1000"
+  },
+  "NBA:LAL": {
+    "name": "Los Angeles Lakers",
+    "source": "https://a.espncdn.com/i/teamlogos/nba/500/lal.png",
+    "directory": "https://site.api.espn.com/apis/site/v2/sports/basketball/nba/teams?limit=1000"
+  },
+  "NBA:MIN": {
+    "name": "Minnesota Timberwolves",
+    "source": "https://a.espncdn.com/i/teamlogos/nba/500/min.png",
+    "directory": "https://site.api.espn.com/apis/site/v2/sports/basketball/nba/teams?limit=1000"
+  },
+  "NBA:NO": {
+    "name": "New Orleans Pelicans",
+    "source": "https://a.espncdn.com/i/teamlogos/nba/500/no.png",
+    "directory": "https://site.api.espn.com/apis/site/v2/sports/basketball/nba/teams?limit=1000"
+  },
+  "NBA:CHA": {
+    "name": "Charlotte Hornets",
+    "source": "https://a.espncdn.com/i/teamlogos/nba/500/cha.png",
+    "directory": "https://site.api.espn.com/apis/site/v2/sports/basketball/nba/teams?limit=1000"
+  },
+  "NBA:NY": {
+    "name": "New York Knicks",
+    "source": "https://a.espncdn.com/i/teamlogos/nba/500/ny.png",
+    "directory": "https://site.api.espn.com/apis/site/v2/sports/basketball/nba/teams?limit=1000"
+  },
+  "NBA:OKC": {
+    "name": "Oklahoma City Thunder",
+    "source": "https://a.espncdn.com/i/teamlogos/nba/500/okc.png",
+    "directory": "https://site.api.espn.com/apis/site/v2/sports/basketball/nba/teams?limit=1000"
+  },
+  "NBA:MIL": {
+    "name": "Milwaukee Bucks",
+    "source": "https://a.espncdn.com/i/teamlogos/nba/500/mil.png",
+    "directory": "https://site.api.espn.com/apis/site/v2/sports/basketball/nba/teams?limit=1000"
+  },
+  "NBA:PHI": {
+    "name": "Philadelphia 76ers",
+    "source": "https://a.espncdn.com/i/teamlogos/nba/500/phi.png",
+    "directory": "https://site.api.espn.com/apis/site/v2/sports/basketball/nba/teams?limit=1000"
+  },
+  "NBA:PHX": {
+    "name": "Phoenix Suns",
+    "source": "https://a.espncdn.com/i/teamlogos/nba/500/phx.png",
+    "directory": "https://site.api.espn.com/apis/site/v2/sports/basketball/nba/teams?limit=1000"
+  },
+  "NBA:ORL": {
+    "name": "Orlando Magic",
+    "source": "https://a.espncdn.com/i/teamlogos/nba/500/orl.png",
+    "directory": "https://site.api.espn.com/apis/site/v2/sports/basketball/nba/teams?limit=1000"
+  },
+  "NBA:POR": {
+    "name": "Portland Trail Blazers",
+    "source": "https://a.espncdn.com/i/teamlogos/nba/500/por.png",
+    "directory": "https://site.api.espn.com/apis/site/v2/sports/basketball/nba/teams?limit=1000"
+  },
+  "NBA:SA": {
+    "name": "San Antonio Spurs",
+    "source": "https://a.espncdn.com/i/teamlogos/nba/500/sa.png",
+    "directory": "https://site.api.espn.com/apis/site/v2/sports/basketball/nba/teams?limit=1000"
+  },
+  "NBA:TOR": {
+    "name": "Toronto Raptors",
+    "source": "https://a.espncdn.com/i/teamlogos/nba/500/tor.png",
+    "directory": "https://site.api.espn.com/apis/site/v2/sports/basketball/nba/teams?limit=1000"
+  },
+  "NBA:SAC": {
+    "name": "Sacramento Kings",
+    "source": "https://a.espncdn.com/i/teamlogos/nba/500/sac.png",
+    "directory": "https://site.api.espn.com/apis/site/v2/sports/basketball/nba/teams?limit=1000"
+  },
+  "NBA:UTAH": {
+    "name": "Utah Jazz",
+    "source": "https://a.espncdn.com/i/teamlogos/nba/500/utah.png",
+    "directory": "https://site.api.espn.com/apis/site/v2/sports/basketball/nba/teams?limit=1000"
+  },
+  "NBA:WSH": {
+    "name": "Washington Wizards",
+    "source": "https://a.espncdn.com/i/teamlogos/nba/500/wsh.png",
+    "directory": "https://site.api.espn.com/apis/site/v2/sports/basketball/nba/teams?limit=1000"
+  }
+}

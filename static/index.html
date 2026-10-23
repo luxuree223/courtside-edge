@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#0b1019">
+<title>Courtside Edge — Sports Research OS</title>
+<script src="/static/appearance.js?v=0.5.1"></script>
+<link rel="stylesheet" href="/static/styles.css?v=0.5.1">
+<link rel="stylesheet" href="/static/appearance.css?v=0.13.1"><link rel="stylesheet" href="/static/research-upgrade.css?v=0.16.0">
+</head><body>
+<div class="app-shell">
+ <aside class="sidebar" id="sidebar">
+   <div class="brand"><div class="brand-mark"><i></i><i></i><i></i></div><div><strong>COURTSIDE<span>EDGE</span></strong><small>YOUR BETTING RESEARCH</small></div></div>
+   <div class="nav-section-title">WORKSPACE</div>
+   <nav id="nav">
+    <button class="nav-item active" data-page="dashboard"><span class="nav-icon">◫</span> Home</button>
+    <button class="nav-item" data-page="consistency"><span class="nav-icon">▥</span> Find NBA Players <span class="nav-sub">●</span></button>
+    <button class="nav-item" data-page="nfl"><span class="nav-icon">◇</span> Find NFL Players</button>
+    <button class="nav-item" data-page="matchups"><span class="nav-icon">⚔</span> Pick a Game</button>
+    <button class="nav-item" data-page="logs"><span class="nav-icon">▤</span> Stats & Game Logs</button>
+    <button class="nav-item" data-page="search"><span class="nav-icon">⌕</span> Search</button>
+    <button class="nav-item" data-page="value"><span class="nav-icon">⌕</span> Find Value</button>
+    <button class="nav-item" data-page="rankings"><span class="nav-icon">↕</span> Rankings</button>
+    <button class="nav-item" data-page="trends"><span class="nav-icon">▤</span> Team Trends</button>
+    <button class="nav-item" data-page="ask"><span class="nav-icon">✦</span> Ask Courtside</button>
+    <button class="nav-item" data-page="bets"><span class="nav-icon">▣</span> My Bets</button>
+   </nav>
+   <div class="nav-section-title data-title">SYSTEM</div>
+   <nav>
+    <button class="nav-item" data-page="data"><span class="nav-icon">◉</span> Update Game Results</button>
+    <button class="nav-item" id="account-action" type="button">Set up / Sign in</button>
+    <button class="nav-item" data-action="save-json-backup" type="button"><span class="nav-icon">↓</span> Save JSON Backup</button>
+    <button class="nav-item" data-page="settings"><span class="nav-icon">⚙</span> Settings</button>
+   </nav>
+   <div class="sidebar-bottom"><div class="online-light"></div><div><strong>PRIVATE WORKSPACE</strong><small>Your account · Your tracker</small></div></div>
+ </aside>
+ <div class="content-wrap">
+   <header class="topbar"><button id="mobile-menu" aria-label="Open menu">☰</button><div class="topbar-context"><span id="crumb">OVERVIEW</span><span class="tiny-divider">/</span><strong id="crumb-page">Command Center</strong></div><div class="topbar-right"><span class="today-label" id="today-label"></span><span id="data-state" class="data-state"><span class="status-dot"></span> Saved on this PC</span><button class="btn btn-ghost btn-small theme-toggle" id="theme-toggle" type="button" aria-label="Switch color mode" aria-pressed="false"><span class="theme-icon" aria-hidden="true">☾</span><span class="theme-label">Dark</span></button><button class="btn btn-primary btn-small" id="sync-tonight" data-action="sync-tonight" type="button" title="Update completed NBA and NFL games and player stats">Sync Tonight’s Results</button><button class="btn btn-ghost btn-small" id="quick-sync">↻ &nbsp;Update</button></div></header>
+   <main id="main" class="main"></main>
+ </div>
+</div>
+<div id="toast" class="toast" role="status" aria-live="polite"></div>
+<div id="modal-root"></div><div id="account-screen" hidden></div>
+<script src="/static/research-controls.js?v=0.16.0"></script>
+<script src="/static/teams.js?v=0.11.1"></script>
+<script src="/static/matchup-logic.js?v=0.11.1"></script>
+<script src="/static/live.js?v=0.16.0"></script>
+<script src="/static/prop-sort.js?v=0.12.2"></script>
+<script src="/static/props.js?v=0.16.0"></script>
+<script src="/static/ai-markdown.js?v=0.12.0"></script>
+<script src="/static/ai.js?v=0.16.0"></script>
+<script src="/static/rankings.js?v=0.16.0"></script>
+<script src="/static/game-team-stats.js?v=0.11.1"></script>
+<script src="/static/player-opportunities.js?v=0.12.1"></script>
+<script src="/static/research.js?v=0.16.0"></script>
+<script src="/static/workflow.js?v=0.16.0"></script>
+<script src="/static/stat-logs.js?v=0.16.0"></script>
+<script src="/static/position-rankings.js?v=0.16.0"></script>
+<script src="/static/position-table.js?v=0.16.0"></script>
+<script src="/static/entity-search.js?v=0.16.0"></script>
+<script src="/static/value-engine.js?v=0.16.0"></script><script src="/static/trend-screen.js?v=0.16.0"></script><script src="/static/accounts.js?v=0.16.0"></script>
+<script src="/static/json-backup.js?v=0.16.0"></script><script src="/static/cloud-auth.js?v=0.16.0"></script>
+<script src="/static/app.js?v=0.16.0"></script>
+</body></html>
+
+

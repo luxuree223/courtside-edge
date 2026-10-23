@@ -18,7 +18,7 @@ function rankGames(){const dates=selectableGameDates(rankSport);return (state.ga
 function rankNextGame(team){const record=nextGames.get(rankSport+':'+team);return record?.game||null}
 function rankOther(game,team){return game?.home_abbr===team?game.away_abbr:game?.home_abbr}
 function rankNumber(value){return value===null?'Unavailable':num(value,1)}
-function rankOpportunities(){return rankData?`<section class="card pad matchup-opportunities" id="matchup-opportunities">${rankOpportunitiesBody()}</section>`:''}
+function rankOpportunities(){if(!rankData)return '';if(rankData.no_stats)return `<details class="card pad"><summary>Matchup Opportunities · No season stats yet</summary>${rankOpportunitiesBody()}</details>`;const result=matchupLogic.scan(rankData,(state.games[rankSport]||[]).map(g=>({...g,game_day:gameDay(g)})),selectableGameDates(rankSport),highlightCategory);return result.groups.length?`<section class="card pad matchup-opportunities" id="matchup-opportunities">${rankOpportunitiesBody()}</section>`:`<details class="card pad matchup-opportunities"><summary>Matchup Opportunities · No matches available</summary><div id="matchup-opportunities">${rankOpportunitiesBody()}</div></details>`}
 function rankOpportunitiesBody(){
  if(!rankData)return '';
  if(rankData.no_stats)return `<div class="card-head"><h2>Matchup Opportunities</h2></div>${empt('No '+esc(rankData.season_label)+' stats yet','This season starts empty. Matchup highlights will appear after enough completed games are recorded. Choose an earlier stats season above for historical context.')}`;
@@ -59,7 +59,7 @@ function rankComparison(){
  const choices=[['','Next scheduled opponent'],...teams.filter(t=>t.team!==a.team).sort((x,y)=>x.name.localeCompare(y.name)).map(t=>[t.team,t.name])];
  const category=rankLabel(rankMetric),produced=rankingValue(a,'offense'),allowed=rankingValue(b,'allowed');
  const cell=(name,value,sub)=>`<div class="ranking-stat"><span>${esc(name)}</span><strong>${rankNumber(value)}<small>/ game</small></strong><p>${esc(sub)}</p></div>`;
- return `<section class="card pad ranking-comparison"><div class="card-head"><div><div class="eyebrow">OFFENSE VS OPPONENT</div><h2 class="ranking-matchup-title">${teamLogo(rankSport,a.team)}${esc(a.name)}${b?'<span class="muted">vs</span>'+teamLogo(rankSport,b.team)+esc(b.name):''}</h2></div><div class="ranking-compare-controls">${field('Team',select('rank-team',teams.slice().sort((x,y)=>x.name.localeCompare(y.name)).map(t=>[t.team,t.name]),rankTeam))}${field('Compare with',select('rank-opponent',choices,rankOpponent))}</div></div>
+ return `<section class="card pad ranking-comparison"><div class="card-head"><div><div class="eyebrow">OFFENSE VS OPPONENT</div><h2 class="ranking-matchup-title">${teamLogo(rankSport,a.team)}${esc(a.name)}${b?'<span class="muted">vs</span>'+teamLogo(rankSport,b.team)+esc(b.name):''}</h2></div><div class="ranking-compare-controls">${field('Team',select('rank-team',teams.slice().sort((x,y)=>x.name.localeCompare(y.name)).map(t=>[t.team,t.name]),rankTeam))}${field('Compare with',select('rank-opponent',choices,rankOpponent))}${b?'<button class="btn btn-primary" data-action="swap-rank-teams">⇄ Swap teams</button>':''}</div></div>
  ${!rankOpponent&&next?`<p class="muted">${esc(gameDateLabel(gameDay(next)))} · ${esc(day(gameDay(next)))} · ${next.season_type==='preseason'?'Upcoming game is preseason. ':''}Rankings below use ${esc(rankData.season_label)} ${rankType==='regular'?'regular season':'playoff'} stats.</p>`:rankOpponent?'<p class="muted">Manual team comparison</p>':`<p class="muted">${esc(nextGameMessage(rankSport,a.team))}</p>`}
  <div class="ranking-pair">${cell(a.name+' · '+category,produced,teamRank(a.team,'offense')+' · highest production')}${cell((b?.name||'Opponent')+' · '+category+' Allowed',allowed,b?teamRank(b.team,'allowed')+' · most allowed':'Checking this team’s next scheduled game…')}</div>
  ${b&&produced!==null&&allowed!==null?`<p class="ranking-readout">${esc(a.name)} average <strong>${rankNumber(produced)}</strong> ${esc(category.toLowerCase())} per game. ${esc(b.name)} allow <strong>${rankNumber(allowed)}</strong> per game.</p>`:''}
@@ -76,19 +76,19 @@ function rankingsPage(){
  const rows=orderedTeams(),category=rankLabel(rankMetric),allowed=rankView==='allowed',total=rankData?.expected_teams||(rankSport==='NFL'?32:30);
  const options=(rankConfig?.seasons?.[rankSport]||[]).map(x=>[x.value,x.label]);
  const stale=rankData?.updated_at&&Date.now()-Date.parse(rankData.updated_at)>86400000;
- return pageHead('TEAM RESEARCH','Rankings','See which teams produce the most—and which opponents allow the most. Choose the same category you’re researching on your sportsbook.',`<button class="btn" data-action="position-jump">Defense vs Position ↓</button><button class="btn" data-action="rank-refresh" ${rankLoading?'disabled':''}>${rankLoading?'Updating…':'↻ Update Rankings'}</button>`)
+ return pageHead('TEAM RESEARCH','Rankings','See which teams produce the most—and which opponents allow the most. Choose the same category you’re researching on your sportsbook.',`<button class="btn" data-page="value">Defense vs Position →</button><button class="btn" data-action="rank-refresh" ${rankLoading?'disabled':''}>${rankLoading?'Updating…':'↻ Update Rankings'}</button>`)
  +`<div class="row-between" style="align-items:end;margin-bottom:20px;gap:20px;flex-wrap:wrap"><div class="select-tabs stats-sport-switch" role="group" aria-label="Rankings sport"><button type="button" data-action="rank-sport" data-sport="NFL" aria-pressed="${rankSport==='NFL'}" class="${rankSport==='NFL'?'active':''}">NFL</button><button type="button" data-action="rank-sport" data-sport="NBA" aria-pressed="${rankSport==='NBA'}" class="${rankSport==='NBA'?'active':''}">NBA</button></div>${field(rankSport+' stats season',select('rank-season',options,rankSeason))}</div>`+rankOpportunities()+`<section class="card pad"><div class="card-head"><h2>Offense & defense</h2></div>
  <div class="ranking-filters">${field('Bet category',select('rank-metric',rankMetrics(),rankMetric))}${field('Show',select('rank-view',[['offense','Offense — produced'],['allowed','Defense — allowed']],rankView))}${field('Sort',select('rank-order',[['most',allowed?'Most allowed first':'Highest first'],['fewest',allowed?'Fewest allowed first':'Lowest first']],rankOrder))}${field('Game type',select('rank-type',[['regular','Regular season'],['postseason','Playoffs']],rankType))}</div>
  <p class="field-help">${allowed?(rankOrder==='most'?'#1 gives up the most in the selected category.':'#1 gives up the fewest in the selected category.'):'Offense ranks each team’s production per game.'} Team totals include all players.</p></section>
  ${rankLoading?'<p class="note-box" role="status">Updating team and opponent statistics…</p>':''}${rankError?`<p class="note-box" role="alert">${esc(rankError)}${rankData?' Saved rankings remain below.':''}</p>`:''}
  ${rankData?`<div class="ranking-source"><span>${esc(rankData.season_label)} · ${rankType==='regular'?'Regular season':'Playoffs'} · ${rows.length} of ${total} teams · ${stale?'Saved data over 24 hours old · ':''}Fetched ${new Date(rankData.updated_at).toLocaleString()}</span><span>Source: ESPN</span></div>${rankData.errors?.length?`<details class="note-box"><summary>Some teams could not update (${rankData.errors.length})</summary>${rankData.errors.map(e=>`<p>${esc(e)}</p>`).join('')}</details>`:''}`:''}
  ${rankData?card(`${rankSport} ${allowed?'Defense':'Offense'} Rankings`,rankingTable(),'<span class="tag">PER GAME'+(allowed?' ALLOWED':'')+'</span>'):!rankLoading?card('Team rankings',empt('No rankings loaded','Press Update Rankings to get this season’s team and opponent statistics.')):''}
- ${rankComparison()}<div id="position-defense">${typeof positionRankPanel==='function'?positionRankPanel():''}</div>
+ ${rankComparison()}
  ${rankData?`<p class="footer-note">${esc(rankData.note)} Team averages provide matchup context; they are not individual player projections or a forecast. ${rankData.teams[0]?.source_url?`<a href="${esc(safeSource(rankData.teams[0].source_url))}" target="_blank" rel="noopener noreferrer">View source ↗</a>`:''}</p>`:''}`;
 }
 async function loadRankings(force=false){
  const request=++rankRequest;
- rankLoading=true;rankError='';if(state.page==='rankings')render();
+ rankLoading=true;rankError='';if(['rankings','value'].includes(state.page))render();
  try{
    if(!rankConfig)rankConfig=await req('/rankings/config');
    if(request!==rankRequest)return;
@@ -109,11 +109,12 @@ async function loadRankings(force=false){
    if(!data.teams.some(t=>t.team===rankTeam))rankTeam=(rankSport==='NFL'&&data.teams.some(t=>t.team==='DAL')?'DAL':orderedTeams()[0]?.team)||'';
    if(rankTeam)loadNextGame(rankSport,rankTeam);
  }catch(e){if(request===rankRequest)rankError=e.message}
- finally{if(request===rankRequest){rankLoading=false;if(state.page==='rankings')render()}}
+ finally{if(request===rankRequest){rankLoading=false;if(['rankings','value'].includes(state.page))render()}}
 }
 document.addEventListener('click',async e=>{
  const button=e.target.closest('[data-action]');if(!button)return;
  const action=button.dataset.action;
+ if(action==='swap-rank-teams'){const other=rankOpponent||rankOther(rankNextGame(rankTeam),rankTeam);if(other){rankOpponent=rankTeam;rankTeam=other;render()}}
  if(action==='rank-refresh')await Promise.all([loadRankings(true),loadSelectableGames(true)]);
  if(action==='rank-sort'){const metric=button.dataset.stat;rankOrder=rankMetric===metric&&rankOrder==='most'?'fewest':'most';rankMetric=metric;render()}
  if(action==='rank-sport'){

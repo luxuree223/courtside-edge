@@ -1,8 +1,8 @@
 const jsonBackupView={data:null,preview:null,busy:false};
 function jsonBackupButtons(){return `<div class="head-actions"><button class="btn btn-primary" data-action="save-json-backup">Save JSON Backup</button><label class="btn" for="json-backup-file">Load JSON Backup</label><input id="json-backup-file" type="file" accept=".json,application/json" hidden></div><p class="field-help">Save a private copy of your bets, bankroll, unit size and timezone to this device. Passwords and API keys are not included. To load a file later, sign in first, select it and review the preview.</p><div id="json-backup-download"></div>`}
-async function saveJSONBackup(){
+async function saveJSONBackup(autoDownload=true){
  const data=await req('/account/backup-json'),url=URL.createObjectURL(new Blob([JSON.stringify(data,null,2)],{type:'application/json'})),a=document.createElement('a');
- a.href=url;a.download='Courtside_Backup_'+new Date().toISOString().replace(/[:.]/g,'-')+'.json';a.textContent='Download JSON backup again';a.className='link-btn';document.querySelector('#json-backup-download')?.replaceChildren(a);a.click();notify('JSON backup ready. Your browser may ask where to save it.');return a;
+ a.href=url;a.download='Courtside_Backup_'+new Date().toISOString().replace(/[:.]/g,'-')+'.json';a.textContent='Download JSON backup again';a.className='link-btn';document.querySelector('#json-backup-download')?.replaceChildren(a);if(autoDownload)a.click();notify('JSON backup ready. Your browser may ask where to save it.');return a;
 }
 async function previewJSONBackup(file){
  if(!file)return;if(file.size>8000000)throw new Error('Choose a Courtside JSON backup smaller than 8 MB.');

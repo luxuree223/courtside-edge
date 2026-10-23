@@ -9,6 +9,7 @@ from fastapi.responses import FileResponse, HTMLResponse, PlainTextResponse, JSO
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 from . import db,providers,markets,history,covers,covers_odds,rankings,ai,props,live,player_opportunities,ai_research,stat_logs,leader_slates,research_index,accounts,next_opponent,discovery,personal_backup,cloud_accounts
+from . import game_research
 
 ROOT=Path(__file__).resolve().parent.parent
 _sync_lock=asyncio.Lock()
@@ -130,12 +131,12 @@ async def lifespan(app):
         try:await _collection_task
         except asyncio.CancelledError:pass
 
-app=FastAPI(title='Courtside Edge',version='0.16.0',lifespan=lifespan)
+app=FastAPI(title='Courtside Edge',version='0.17.0',lifespan=lifespan)
 app.mount('/static',StaticFiles(directory=str(ROOT/'static')),name='static')
 
 @app.middleware('http')
 async def private_accounts(request:Request,call_next):
-    public=('/api/auth/status','/api/auth/setup','/api/auth/login','/api/auth/register','/api/health','/api/cloud/config')
+    public=('/api/auth/status','/api/auth/setup','/api/auth/login','/api/auth/register','/api/health','/api/cloud/config','/api/public/home')
     path=request.url.path
     user=accounts.session(request.cookies.get(accounts.COOKIE,''))
     if request.method not in ('GET','HEAD','OPTIONS'):
@@ -202,15 +203,20 @@ async def next_team_game(sport:str,team:str,refresh:bool=False):
     except ValueError as ex:raise HTTPException(400,str(ex))
 
 @app.get('/')
-def index():return FileResponse(ROOT/'static'/'index.html')
+def index():return FileResponse(ROOT/'static'/'index.html',headers={'Cache-Control':'no-store'})
 
 @app.get('/api/health')
-def health(request:Request):return {'ok':True,'version':'0.16.0',**({'data':db.data_counts()} if not cloud_accounts.enabled() and (request.state.account or not accounts.configured()) else {})}
+def health(request:Request):return {'ok':True,'version':'0.17.0',**({'data':db.data_counts()} if not cloud_accounts.enabled() and (request.state.account or not accounts.configured()) else {})}
 
 @app.get('/api/cloud/config')
 def cloud_config():
     try:return cloud_accounts.config()
     except cloud_accounts.CloudError as ex:raise HTTPException(ex.status,ex.message)
+
+@app.get('/api/public/home')
+def public_home():
+    date=tz_today().date().isoformat()
+    return {'date':date,'games':{sport:db.games_list(sport,date,date,100) for sport in ('NBA','NFL')}}
 
 class CloudUnit(BaseModel):
     unit_size:float=Field(ge=.01,le=1_000_000)
@@ -714,6 +720,16 @@ def search_stat_logs(q:str=Query(...,max_length=250),sport:str='auto',last:int|N
 @app.get('/api/game/boxscore')
 async def game_boxscore(sport:str,game_id:str,refresh:bool=False):
     try:return await stat_logs.box_score(sport,game_id,refresh)
+    except ValueError as ex:raise HTTPException(400,str(ex))
+
+@app.get('/api/game/research')
+async def game_research_players(sport:str,game_id:str):
+    try:return await game_research.overview(sport,game_id)
+    except ValueError as ex:raise HTTPException(400,str(ex))
+
+@app.get('/api/game/research/player')
+async def game_research_player(sport:str,game_id:str,player_id:str):
+    try:return await game_research.player(sport,game_id,player_id)
     except ValueError as ex:raise HTTPException(400,str(ex))
 
 @app.get('/api/stats/leaders')

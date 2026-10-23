@@ -75,7 +75,7 @@ def _response(error):return JSONResponse({'detail':error.message},status_code=er
 async def handle(request,call_next):
     path=request.url.path
     request.state.account=None;request.state.onboarding_required=False
-    if path in ('/api/cloud/config','/api/health') or not path.startswith('/api/'):return await call_next(request)
+    if path in ('/api/cloud/config','/api/health','/api/public/home') or not path.startswith('/api/'):return await call_next(request)
     if path=='/api/cloud/signout' and request.method=='POST':
         response=JSONResponse({'signed_out':True},headers={'Cache-Control':'no-store'})
         response.delete_cookie(COOKIE,httponly=True,samesite='strict');return response

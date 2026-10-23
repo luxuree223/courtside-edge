@@ -1,10 +1,20 @@
 /* Optional Firebase email/password sign-in. No password is stored in the browser. */
 const cloudSession={enabled:false,config:null,tokens:null,busy:false,mode:'register'};
+function cloudLoginEmail(value){const input=String(value||'').trim();if(input.includes('@'))return input;if(!/^[a-zA-Z0-9_]{3,30}$/.test(input))throw new Error('Use a username with 3–30 letters, numbers or underscores, or enter your email address.');return 'u.'+input.toLowerCase()+'@'+cloudSession.config.projectId+'.users.invalid'}
+let guestSport='NBA',guestHomeRequest=0;
+async function showGuestHome(){
+ const request=++guestHomeRequest;document.querySelector('.app-shell').hidden=true;const host=document.querySelector('#account-screen');host.hidden=false;
+ const header=`<header class="guest-top"><strong>COURTSIDE EDGE</strong><div class="head-actions"><button class="btn" data-cloud-mode="login">Sign in</button><button class="btn btn-primary" data-cloud-mode="register">Create account</button></div></header>`;
+ host.innerHTML=`<div class="guest-home">${header}<h1>Your game research starts here.</h1><p class="muted">Explore the slate. Sign in to save your own research, bets and unit size.</p><p role="status">Loading the slate…</p></div>`;
+ try{const d=await req('/public/home');if(request!==guestHomeRequest||!host.querySelector('.guest-home'))return;const games=d.games[guestSport]||[];
+ host.innerHTML=`<div class="guest-home">${header}<section class="card pad"><div class="eyebrow">NBA & NFL RESEARCH</div><h1>Your game research starts here.</h1><p>Check games, compare player stats and keep your own betting tracker. Your account keeps your bets and money settings separate from everyone else’s.</p><button class="btn btn-primary" data-cloud-mode="register">Create your free account</button><button class="btn" data-cloud-mode="login">Sign in to your saved progress</button></section><section class="card pad"><div class="card-head"><h2>Today’s slate · ${day(d.date)}</h2><div class="select-tabs">${['NBA','NFL'].map(s=>`<button class="${guestSport===s?'active':''}" data-guest-sport="${s}">${s}</button>`).join('')}</div></div>${games.length?`<div class="guest-slate">${games.map(g=>`<article><h3>${esc(g.away)} at ${esc(g.home)}</h3><p>${esc(gameStatusText(g))}${g.status==='scheduled'?'':` · ${g.away_score??'—'} – ${g.home_score??'—'}`}</p><button class="link-btn" data-cloud-mode="login">Sign in to research this game →</button></article>`).join('')}</div>`:'<p>No saved games are listed for today. Sign in to check schedules and game results.</p>'}</section><p class="field-help">No invitation needed. Create an account with a username or email, a password and your own unit size.</p></div>`;
+ }catch(error){if(request===guestHomeRequest)host.innerHTML=`<div class="guest-home">${header}<h1>Courtside Edge</h1><p>NBA and NFL player research, game logs and your private tracker.</p><p role="status">The slate could not load. You can still sign in or create an account.</p></div>`}
+}
 function cloudStore(tokens){cloudSession.tokens=tokens;try{if(tokens)sessionStorage.setItem('courtside-cloud-auth',JSON.stringify(tokens));else sessionStorage.removeItem('courtside-cloud-auth')}catch{}}
 async function cloudSetCookie(){const r=await fetch('/api/cloud/session',{method:'POST',headers:{Authorization:'Bearer '+cloudSession.tokens.idToken}});if(!r.ok)throw new Error('Cloud sign-in could not be established. Retry signing in.')}
 async function cloudIdentity(action,body){
  const r=await fetch('https://identitytoolkit.googleapis.com/v1/accounts:'+action+'?'+new URLSearchParams({key:cloudSession.config.apiKey}),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}),d=await r.json();
- if(!r.ok){const code=d.error?.message||'';throw new Error(code.includes('EMAIL_EXISTS')?'That email already has an account. Sign in instead.':code.includes('INVALID_LOGIN_CREDENTIALS')||code.includes('EMAIL_NOT_FOUND')||code.includes('INVALID_PASSWORD')?'The email or password is incorrect.':code.includes('WEAK_PASSWORD')?'Use a stronger password with at least 10 characters.':code.includes('INVALID_EMAIL')?'Enter a valid email address.':'Cloud sign-in failed. Check the connection and Firebase email/password setup.')}
+ if(!r.ok){const code=d.error?.message||'';throw new Error(code.includes('EMAIL_EXISTS')?'That username or email already has an account. Sign in instead.':code.includes('INVALID_LOGIN_CREDENTIALS')||code.includes('EMAIL_NOT_FOUND')||code.includes('INVALID_PASSWORD')?'The username, email or password is incorrect.':code.includes('WEAK_PASSWORD')?'Use a stronger password with at least 10 characters.':code.includes('INVALID_EMAIL')?'Enter a valid email address.':'Cloud sign-in failed. Check the connection and Firebase email/password setup.')}
  return d;
 }
 async function cloudHeaders(){
@@ -19,13 +29,13 @@ async function cloudHeaders(){
 }
 function showCloudForm(mode='register',message=''){
  const onboarding=mode==='onboard',register=mode==='register';cloudSession.mode=mode;document.querySelector('.app-shell').hidden=true;const host=document.querySelector('#account-screen');host.hidden=false;
- host.innerHTML=`<section class="card pad account-card"><div class="eyebrow">COURTSIDE EDGE · CLOUD ACCOUNT</div><h1>${onboarding?'Choose your unit size':register?'Create your account':'Welcome back'}</h1><p>Your saved bets and money settings belong to your account. They are available when you sign in from another device.</p><form id="cloud-account-form" class="stack">${onboarding?'':`<label for="cloud-email">Email</label><input class="input" id="cloud-email" type="email" autocomplete="username" required><label for="cloud-password">Password</label><input class="input" id="cloud-password" type="password" minlength="10" maxlength="256" autocomplete="${register?'new-password':'current-password'}" required>`}${register||onboarding?signupUnitFields():''}<button class="btn btn-primary" type="submit">${onboarding?'Finish setup':register?'Create account & get started':'Sign in'}</button></form><p id="cloud-account-message" role="status">${esc(message)}</p>${onboarding?'':`<button class="link-btn" data-cloud-mode="${register?'login':'register'}">${register?'Already have an account? Sign in':'New here? Create an account'}</button>`}</section>`;
+ host.innerHTML=`<section class="card pad account-card"><div class="eyebrow">COURTSIDE EDGE · CLOUD ACCOUNT</div><h1>${onboarding?'Choose your unit size':register?'Create your account':'Welcome back'}</h1><p>Your saved bets and money settings belong to your account. They are available when you sign in from another device.</p><form id="cloud-account-form" class="stack">${onboarding?'':`<label for="cloud-email">Username or email</label><input class="input" id="cloud-email" type="text" autocomplete="username" maxlength="254" placeholder="Your username or email address" required>${register?'<p class="field-help">Usernames: 3–30 letters, numbers or underscores. Use an email instead if you want an email address associated with the account. Username-only accounts have no recovery email.</p>':''}<label for="cloud-password">Password</label><input class="input" id="cloud-password" type="password" minlength="10" maxlength="256" autocomplete="${register?'new-password':'current-password'}" required>`}${register||onboarding?signupUnitFields():''}<button class="btn btn-primary" type="submit">${onboarding?'Finish setup':register?'Create account & get started':'Sign in'}</button></form><p id="cloud-account-message" role="status">${esc(message)}</p>${onboarding?'':`<button class="link-btn" data-cloud-mode="${register?'login':'register'}">${register?'Already have an account? Sign in':'New here? Create an account'}</button>`}<button class="link-btn" data-cloud-home>← Back to homepage</button></section>`;
 }
 async function bootstrapCloudAuth(){
  const d=await req('/cloud/config');if(!d.enabled)return false;Object.assign(cloudSession,{enabled:true,config:d.firebase});
  try{cloudSession.tokens=JSON.parse(sessionStorage.getItem('courtside-cloud-auth')||'null')}catch{}
- if(!cloudSession.tokens){showCloudForm();return true}
- try{await cloudHeaders();await cloudSetCookie();const status=await req('/auth/status');Object.assign(accountView,status);if(status.onboarding_required)showCloudForm('onboard');else await startCourtside()}catch(err){showCloudForm('login',err.message)}return true;
+ if(!cloudSession.tokens){await showGuestHome();return true}
+ try{await cloudHeaders();await cloudSetCookie();const status=await req('/auth/status');Object.assign(accountView,status);if(status.onboarding_required)showCloudForm('onboard');else await startCourtside()}catch(err){cloudStore(null);await showGuestHome()}return true;
 }
 async function cloudSignOut(){
  if(cloudSession.busy)return;cloudSession.busy=true;
@@ -35,14 +45,15 @@ async function cloudSignOut(){
   showCloudForm('login','You’re signed out. Keep your JSON backup private. If it did not download, use the link below.');document.querySelector('.account-card').appendChild(download);accountButton();
  }catch(err){notify(err.message,true)}finally{cloudSession.busy=false}
 }
-document.addEventListener('click',e=>{const mode=e.target.closest('[data-cloud-mode]');if(mode&&!cloudSession.busy)showCloudForm(mode.dataset.cloudMode)});
+document.addEventListener('click',e=>{const mode=e.target.closest('[data-cloud-mode]');if(mode&&!cloudSession.busy){guestHomeRequest++;showCloudForm(mode.dataset.cloudMode)}if(e.target.closest('[data-cloud-home]'))showGuestHome();const sport=e.target.closest('[data-guest-sport]');if(sport){guestSport=sport.dataset.guestSport;showGuestHome()}});
 document.addEventListener('submit',async e=>{
  if(e.target.id!=='cloud-account-form')return;e.preventDefault();if(cloudSession.busy)return;cloudSession.busy=true;
  try{
   const mode=cloudSession.mode,unit=Number(document.querySelector('#account-unit')?.value);
   if(mode!=='login'&&(!Number.isFinite(unit)||unit<.01||unit>1e6||Math.abs(Math.round(unit*100)-unit*100)>1e-7))throw new Error('Enter your unit size in dollars and cents.');
   if(mode!=='onboard'){
-   const result=await cloudIdentity(mode==='register'?'signUp':'signInWithPassword',{email:document.querySelector('#cloud-email').value.trim(),password:document.querySelector('#cloud-password').value,returnSecureToken:true});
+   const result=await cloudIdentity(mode==='register'?'signUp':'signInWithPassword',{email:cloudLoginEmail(document.querySelector('#cloud-email').value),password:document.querySelector('#cloud-password').value,returnSecureToken:true});
+   if(mode==='register'&&!document.querySelector('#cloud-email').value.includes('@'))await cloudIdentity('update',{idToken:result.idToken,displayName:document.querySelector('#cloud-email').value.trim(),returnSecureToken:false});
    cloudStore({idToken:result.idToken,refreshToken:result.refreshToken,expiresAt:Date.now()+Number(result.expiresIn)*1000});
    await cloudSetCookie();
   }

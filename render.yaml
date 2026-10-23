@@ -28,3 +28,8 @@ services:
         value: "1"
       - key: EDGE_SHARED_PROVIDER_KEYS
         value: "0"
+      # Owner-managed AI only; sportsbook/provider keys stay per account.
+      - key: EDGE_SHARED_AI_KEY
+        value: "1"
+      - key: OPENAI_API_KEY
+        sync: false

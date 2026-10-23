@@ -1,10 +1,18 @@
-# Courtside Edge 0.18.0
+# Courtside Edge 0.18.2
+
+Player research now puts the game picker first, separates direct profile search from the Consistency finder, and starts stat/recent-game targets blank. NBA position filters offer PG, SG, SF, PF and C only. The mobile defense table uses a narrow rank/logo/abbreviation column to leave room for stats.
+
+Defense vs Position uses the full table with a clear team divider, matchup color guide and spacing beneath the season controls. Rankings uses a consistent SVG arrow on mobile and desktop, places data coverage inside the rankings card, and moves Matchup Opportunities to the bottom.
+
+The owner may provide one server-managed AI connection for every authenticated account using EDGE_SHARED_AI_KEY=1 and OPENAI_API_KEY in the host environment. OPENAI_MODEL selects the owner's model. Account pages show connection status without exposing or changing the shared credential. Sportsbook/provider credentials remain separate. Local Windows owners can opt in with share_with_accounts: true in their private data/ai-config.json; the encrypted key stays outside the source package. Shared AI requests use the owner's API allowance. The public site still requires the owner key to be configured in Render; it is never part of GitHub or this ZIP.
+
+The signed-in homepage has a pencil beside Your Current Betting Money to edit starting/current amounts and unit size. Balance corrections are separate from wager profit and persist in Firebase and JSON backups. A completed login sync opens the app automatically; Retry appears only for failures.
 
 The public homepage refreshes each sport’s slate and moves to tomorrow only after that sport’s games finish. Signing in checks both current seasons for missing ESPN game logs and verifies roster positions before opening the app. The first sync can take several minutes on a cold free host; source errors are shown with retry and an explicit option to open available records.
 
 Public sports records are shared across hosted accounts. Bets, units, bankroll, API keys, quotes and saved AI research stay private. Server research storage remains temporary on Render Free, while Firebase retains personal trackers. Sign-out prepares a private JSON backup and shows a mobile-friendly save button after signing out.
 
-Defense vs Position now has its own sidebar page with Quick Compare/Full Table, alphabetical and stat sorting, and selected season/last 5 days/last 14 days/last 28 games per team windows. ESPN roster/depth-chart positions are indexed separately with source URLs and observation times. Current-season G/F/missing labels can be classified using this metadata; original historical rows are retained. Positions describe roster/depth-chart classifications rather than tracked defensive assignments. Some players have several listed positions and can appear in multiple views. Unresolved positions and missing stat coverage remain visible.
+Defense vs Position now has its own sidebar page with a full comparison table, alphabetical and stat sorting, and selected season/last 5 days/last 14 days/last 28 games per team windows. ESPN roster/depth-chart positions are indexed separately with source URLs and observation times. Current-season G/F/missing labels can be classified using this metadata; original historical rows are retained. Positions describe roster/depth-chart classifications rather than tracked defensive assignments. Some players have several listed positions and can appear in multiple views. Unresolved positions and missing stat coverage remain visible.
 
 Player research has season/last-5/last-10 averages, position-specific NFL cards with quarterbacks first, five recent-game boxes for both sports, and complete-game-log links. Game and team stats precede the player cards. Team Trends is marked Coming Soon.
 

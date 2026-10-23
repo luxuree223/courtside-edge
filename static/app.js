@@ -3,7 +3,7 @@ function savedLeague(){try{return localStorage.getItem('courtside-last-league')=
 function rememberLeague(sport){if(sport!=='NBA'&&sport!=='NFL')return;state.syncSport=sport;try{localStorage.setItem('courtside-last-league',sport)}catch{}}
 let collectionPollTimer=null;
 const state={syncSport:savedLeague(),collectionStatus:null,page:'dashboard',dashboard:null,bets:[],games:{NBA:[],NFL:[]},data:null,settings:null,
- sport:savedLeague(),selectedGame:null,snapshots:[],snapshotMessage:'',scheduleDate:today(),scheduleLoaded:false,matchup:'',customTeams:'',results:null,filters:{stat:'pts',threshold:20,last:10,min_rate:50,max_rate:100,venue:'all',season_type:'regular',min_minutes:0,price:''},
+ sport:savedLeague(),selectedGame:null,snapshots:[],snapshotMessage:'',scheduleDate:today(),scheduleLoaded:false,matchup:'',customTeams:'',results:null,finderMode:'profile',filters:{stat:'pts',threshold:'',last:'',min_rate:50,max_rate:100,venue:'all',season_type:'regular',min_minutes:0,price:''},
  expanded:null,matchupIntel:null,busy:false,dialog:null,syncOutput:null};
 const $=x=>document.querySelector(x), $$=x=>[...document.querySelectorAll(x)];
 function esc(v){return String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
@@ -33,7 +33,7 @@ function chart(points){if(!points||points.length<2)return `<div class="activity"
 function statCard(label,value,meta,icon='',cls=''){return `<article class="card stats-card"><div class="stats-label">${label}</div><div class="stats-icon">${icon}</div><div class="stats-value ${cls}">${value}</div><div class="stats-meta">${meta}</div></article>`}
 function dashboard(){const s=state.dashboard.summary,d=state.data;
  return pageHead('HOME','Your bets and player research in one place.','Track your money, find consistent players, and update NBA/NFL game results.',`<button class="btn btn-primary" data-action="new-bet">＋ New Bet</button>`)
- +`<div class="hero"><div><div class="hero-label">◉ &nbsp; YOUR CURRENT BETTING MONEY</div><h2>${money(s.bankroll)}</h2><p>Your starting money plus or minus your finished bets. Unfinished bets are shown separately. Player numbers come from saved real games.</p></div><div class="hero-right"><span class="hero-unit">1 UNIT &nbsp; <strong>${money(s.unit)}</strong></span><button class="btn btn-primary" data-page="consistency">Find Consistent Players →</button></div></div>`
+ +`<div class="hero"><div><div class="hero-label">◉ &nbsp; YOUR CURRENT BETTING MONEY <button class="money-pencil" data-action="edit-home-money" type="button" aria-label="Edit betting money and starting amount" title="Edit betting money and starting amount">✎</button></div><h2>${money(s.bankroll)}</h2><p>Your starting money, balance adjustments and finished bet results. Unfinished bets are shown separately. Player numbers come from saved real games.</p></div><div class="hero-right"><span class="hero-unit">1 UNIT &nbsp; <strong>${money(s.unit)}</strong></span><button class="btn btn-primary" data-page="consistency">Find Consistent Players →</button></div></div>`
  +`<div class="grid-4">${statCard('MONEY WON OR LOST',money(s.profit,true),'Since your $'+s.starting_bankroll+' starting bankroll','↗',s.profit>=0?'green':'red')}${statCard('UNITS WON OR LOST', (s.units>0?'+':'')+num(s.units,3)+'u','Based on '+money(s.unit)+' / unit','◎',s.units>=0?'green':'red')}${statCard('WINS AND LOSSES',s.wins+'–'+s.losses,s.cashouts+' profitable cash-outs included','▣')}${statCard('Return on bets',pct(s.roi),money(s.settled_risk)+' total settled stake','◈',s.roi>=0?'green':'red')}</div>`
  +`<div class="cols-main">${card('Bankroll Performance', chart(s.trajectory),'<span class="tag">ALL TIME</span>')}${card('Saved Game Results',`<div class="stack">${['NBA','NFL'].map(k=>`<div class="row-between"><div><strong>${k} Player Games</strong><div class="muted" style="font-size:11px;margin-top:5px">${d[k].latest?'Latest: '+d[k].latest:'No historical records yet'}</div></div><strong class="${d[k].player_logs?'green':'yellow'}">${d[k].player_logs.toLocaleString()}</strong></div>`).join('')}<div class="divider" style="margin:3px 0"></div><div class="note-box">We count how often players reached their numbers in saved box scores. Add past seasons or update recent results to search real games.</div><button class="btn btn-full" data-page="data">Update Game Results →</button></div>`,'<span class="tag">SAVED ON THIS COMPUTER</span>')}</div>`
  +`<div class="cols-main">${card('Recent Bets',state.bets.length?betRows(state.bets.slice(0,6)):empt('No bets yet','Add your first wager'),'<button class="link-btn" data-page="bets">View all →</button>')}${card('Find Players Fast',`<div class="stack"><div><div class="section-label">NBA CONSISTENCY</div><h3 style="font:700 18px var(--head);margin:8px 0">Find players who reach their numbers</h3><p class="muted" style="font-size:12px;line-height:1.7">Pick a game. Choose points, rebounds, or assists. Look back at any number of games—even 1 or 2.</p></div><button class="btn btn-primary btn-full" data-page="consistency">Find NBA Players →</button><button class="btn btn-full" data-page="nfl">Find NFL Players →</button></div>`)}</div>`
@@ -56,6 +56,8 @@ function finderStatOptions(f){
 }
 function statWords(stat,sport=state.sport){return statName(stat,sport).toLowerCase()}
 function finderSummary(f,sport){
+ if(f.threshold===''||f.threshold===null||f.threshold===undefined)return 'Enter how many of the selected stat the player should reach.';
+ if(f.last===''||f.last===null||f.last===undefined)return 'Enter how many recent games to check (1–100).';
  const n=Number(f.last),amount=Number(f.threshold),min=Number(f.min_rate),max=Number(f.max_rate??100);
  if(!Number.isInteger(n)||n<1||n>100)return 'Choose 1 to 100 past games.';
  if(!Number.isFinite(amount)||amount<0)return 'Enter the number you want the player to reach.';
@@ -68,27 +70,28 @@ function previewText(){return finderSummary({...state.filters,stat:$('#f-stat')?
 function updateSearchPreview(){
  const preview=$('#search-preview');if(preview)preview.innerHTML=previewText();
  const stat=$('#f-stat')?.value||state.filters.stat,over=$('#f-over-line')?.checked,amount=Number($('#f-threshold')?.value||0);
- const label=$('#amount-label');if(label)label.textContent=over?'Sportsbook over line':'Minimum stat result';
- const hint=$('#amount-help');if(hint)hint.textContent=over?`The player must finish above ${amount}; exactly ${amount} is a push.`:`Counts games with at least ${Math.ceil(amount)} ${statWords(stat)}; exactly ${Math.ceil(amount)} qualifies.`;
+ const label=$('#amount-label');if(label)label.textContent=over?'Sportsbook over line':'How many?';
+ const hint=$('#amount-help');if(hint)hint.textContent=$('#f-threshold')?.value===''?'Enter the minimum number the player should reach.':over?`The player must finish above ${amount}; exactly ${amount} is a push.`:`Counts games with at least ${Math.ceil(amount)} ${statWords(stat)}; exactly ${Math.ceil(amount)} qualifies.`;
 }
 function consistencyPage(){
  if(state.selectedGame&&!selectableGameDates().includes(gameDay(state.selectedGame))){
    if(state.filters.before===gameDay(state.selectedGame))state.filters.before='';
    state.selectedGame=null;state.matchup='';state.results=null;state.matchupIntel=null;
  }
- const nfl=state.sport==='NFL',f=state.filters,over=f.comparison==='over',amount=over?f.threshold:Math.ceil(f.threshold);
- return pageHead('PLAYER RESEARCH',nfl?'Find NFL Players':'Find NBA Players','Choose your filters, then see the players who match.',`<button class="btn btn-primary back-slate" data-action="back-to-slate">← Back to full slate</button><button class="btn" data-action="research-search">⌕ Search player / team</button>`)
+ const nfl=state.sport==='NFL',f=state.filters,consistency=state.finderMode==='consistency',over=f.comparison==='over',amount=f.threshold===''?'':over?f.threshold:Math.ceil(f.threshold);
+ return pageHead('PLAYER RESEARCH',nfl?'Find NFL Players':'Find NBA Players','Open a player profile or use the consistency finder to compare recent results.',`<button class="btn btn-primary back-slate" data-action="back-to-slate">← Back to full slate</button><button class="btn" data-action="research-search">⌕ Search player / team</button>`)
  +gameOverviewPanel()+(typeof gameResearchPanel==='function'?gameResearchPanel():boxScorePanel())
  +`<section class="card pad filters-card finder-card"><div class="card-head"><h2>Find your players</h2><div class="select-tabs"><button class="${!nfl?'active':''}" data-action="sport" data-sport="NBA">NBA</button><button class="${nfl?'active':''}" data-action="sport" data-sport="NFL">NFL</button></div></div>
- <div class="finder-player-search">${field('Search for a player',`<input class="input" type="search" id="f-player" maxlength="150" value="${esc(f.player||'')}" placeholder="${nfl?'Example: CeeDee Lamb':'Example: Nikola Jokić'}" autocomplete="off"><small class="field-help">Full or partial name. Searches the selected game and filters; choose All players / all teams to search the whole sport.</small>`)}<button class="btn" data-action="run-filter">Search Player</button></div>
- <div class="finder-main">
  ${field('Game to research',select('matchup',matchOptions(),state.selectedGame?.id||'')+`<small class="field-help" id="game-schedule-note"></small>`,'finder-game')}
- ${field('Player stat',finderStatOptions(f))}
- <div class="field"><label id="amount-label" for="f-threshold">${over?'Sportsbook over line':'Minimum stat result'}</label><input class="input" id="f-threshold" type="number" step="any" min="0" value="${amount}" aria-describedby="amount-help"><small class="field-help" id="amount-help">${over?`Finish above ${amount}; exactly ${amount} is a push.`:`Counts a game when the player records at least ${amount} ${esc(statWords(f.stat))}; exactly ${amount} qualifies.`}</small></div>
- ${field('Recent games to check',`<input class="input" id="f-last" type="number" step="1" min="1" max="100" inputmode="numeric" value="${f.last}"><small class="field-help">Checks the most recent completed games after your filters; choose 1–100.</small>`)}
+ <div class="select-tabs finder-mode" role="group" aria-label="Player finder mode">${[['profile','Player profiles'],['consistency','Consistency finder']].map(([key,label])=>`<button type="button" data-action="finder-mode" data-mode="${key}" aria-pressed="${state.finderMode===key}" class="${state.finderMode===key?'active':''}">${label}</button>`).join('')}</div>
+ <div class="finder-search-row ${consistency?'with-criteria':''}"><div class="finder-player-search">${field('Search for a player',`<input class="input" type="search" id="f-player" maxlength="150" value="${esc(f.player||'')}" placeholder="${nfl?'Example: CeeDee Lamb':'Example: Nikola Jokić'}" autocomplete="off"><small class="field-help">Open a profile, season stats and recent games. Full or partial name; searches all ${state.sport} players.</small>`)}<button class="btn" data-action="finder-profile">Search Player</button></div>
+ ${consistency?`<div class="finder-main">
+ ${field('Which stat?',finderStatOptions(f))}
+ <div class="field"><label id="amount-label" for="f-threshold">${over?'Sportsbook over line':'How many?'}</label><input class="input" id="f-threshold" type="number" step="any" min="0" value="${amount}" aria-describedby="amount-help"><small class="field-help" id="amount-help">${amount===''?'Enter the minimum number the player should reach.':over?`Finish above ${amount}; exactly ${amount} is a push.`:`Counts a game when the player records at least ${amount} ${esc(statWords(f.stat))}; exactly ${amount} qualifies.`}</small></div>
+ ${field('How many recent games?',`<input class="input" id="f-last" type="number" step="1" min="1" max="100" inputmode="numeric" value="${f.last}"><small class="field-help">Checks the most recent completed games after your filters; choose 1–100.</small>`)}
  ${field('Minimum hit rate',`<div class="percent-input"><input class="input" id="f-min_rate" type="number" min="0" max="100" step="1" value="${f.min_rate}"><span aria-hidden="true">%</span></div><small class="field-help">Only show players who reached your target in at least this percentage of reported games.</small>`)}
- </div>
- <div class="finder-bottom"><div class="search-preview" role="status" id="search-preview">${finderSummary({...f,threshold:amount},state.sport)}</div><button class="btn btn-primary" data-action="run-filter">Find Players →</button></div>
+ </div>`:''}</div>
+ ${consistency?`<div class="finder-bottom"><div class="search-preview" role="status" id="search-preview">${finderSummary({...f,threshold:amount},state.sport)}</div><button class="btn btn-primary" data-action="run-filter">Find Players →</button></div>
  <details class="finder-more"><summary>More options</summary><div class="finder-extra-grid">
  ${field('Where the player played',select('venue',[['all','All games'],['home','Home games'],['away','Away games']],f.venue))}
  ${field('Game type',select('season_type',[['regular','Regular season'],['preseason','Preseason'],['postseason','Playoffs']],f.season_type))}
@@ -99,9 +102,9 @@ function consistencyPage(){
  ${!nfl?field('Minimum minutes played',`<input class="input" id="f-min_minutes" type="number" min="0" max="100" value="${f.min_minutes}">`):''}
  ${field('Maximum hit rate (optional)',`<input class="input" id="f-max_rate" type="number" min="0" max="100" step="1" value="${f.max_rate}">`)}
  ${field('American odds for comparison (optional)',`<input class="input" id="f-price" type="number" placeholder="Example: -110" value="${f.price||''}">`)}
- </div>${nfl?`<label class="finder-line-option"><input type="checkbox" id="f-research-stats" ${f.include_research?'checked':''}> Show research stats (Targets)</label>`:''}<label class="finder-line-option"><input type="checkbox" id="f-over-line" ${over?'checked':''}> I’m entering an over line from my sportsbook.</label><p class="field-help">For example: over 2.5 receptions needs 3 or more receptions.</p><button class="btn btn-small" data-action="clear-filter">Reset filters</button></details></section>
+ </div>${nfl?`<label class="finder-line-option"><input type="checkbox" id="f-research-stats" ${f.include_research?'checked':''}> Show research stats (Targets)</label>`:''}<label class="finder-line-option"><input type="checkbox" id="f-over-line" ${over?'checked':''}> I’m entering an over line from my sportsbook.</label><p class="field-help">For example: over 2.5 receptions needs 3 or more receptions.</p><button class="btn btn-small" data-action="clear-filter">Reset filters</button></details>`:''}</section>
  ${gamePropsPanel()}
- <div id="player-results">${state.results?renderResults():card('Matching players',empt('Ready to search','Choose your numbers above, then press Find Players.'))}</div>
+ <div id="player-results">${consistency?(state.results?renderResults():card('Matching players',empt('Ready to search','Choose your numbers above, then press Find Players.'))):''}</div>
  ${state.selectedGame?`<details class="card pad research-extras"><summary>Game notes, Covers odds & screenshots</summary><div id="selected-game-host">${snapshotContents()}</div>${state.matchupIntel?renderMatchupIntel():''}</details>`:`<div id="selected-game-host"></div>`}`;
 }
 function previewTextFallback(f,sport){return finderSummary(f,sport)}
@@ -167,7 +170,7 @@ function nav(page){
  if(['matchups','nfl','consistency','value','rankings'].includes(page))refreshLiveScores();
  if(page==='logs')loadStatsLanding();
 }
-function readFilters(){const val=id=>$('#f-'+id)?.value;let f={...state.filters,player:(val('player')||'').trim(),stat:val('stat')||state.filters.stat,threshold:Number(val('threshold')||0),last:Number(val('last')),venue:val('venue')||'all',season_type:val('season_type')||'regular',min_minutes:Number(val('min_minutes')||0),min_rate:Number(val('min_rate')||0),max_rate:Number(val('max_rate')??100),price:val('price')||'',comparison:$('#f-over-line')?.checked?'over':'at_least',opponent:(val('opponent')||'').toUpperCase().trim(),season:val('season')||'',before:val('before')||''};if(!Number.isInteger(f.last)||f.last<1||f.last>100)throw new Error('Choose a whole number from 1 to 100 past games.');if(!Number.isFinite(f.threshold)||f.threshold<0)throw new Error('Enter 0 or more for the number you want them to reach.');if(f.price && !(Number(f.price)>=100||Number(f.price)<=-100))throw new Error('For odds, enter +100 or higher, or -100 or lower.');if(!Number.isFinite(f.min_rate)||!Number.isFinite(f.max_rate)||f.min_rate<0||f.max_rate>100||f.min_rate>f.max_rate)throw new Error('Use percentages between 0 and 100. The minimum cannot be higher than the maximum.');state.filters=f;saveFinder();state.customTeams=$('#f-teams')?.selectedOptions?[...$('#f-teams').selectedOptions].map(o=>o.value).join(','):(val('teams')||'').toUpperCase().replace(/[^A-Z,]/g,'');state.matchup=state.customTeams||(state.selectedGame?state.selectedGame.home_abbr+','+state.selectedGame.away_abbr:'');return f}
+function readFilters(){const val=id=>$('#f-'+id)?.value;if(!String(val('threshold')??'').trim())throw new Error('Enter how many of the selected stat the player should reach.');if(!String(val('last')??'').trim())throw new Error('Enter how many recent games to check (1–100).');let f={...state.filters,player:(val('player')||'').trim(),stat:val('stat')||state.filters.stat,threshold:Number(val('threshold')||0),last:Number(val('last')),venue:val('venue')||'all',season_type:val('season_type')||'regular',min_minutes:Number(val('min_minutes')||0),min_rate:Number(val('min_rate')||0),max_rate:Number(val('max_rate')??100),price:val('price')||'',comparison:$('#f-over-line')?.checked?'over':'at_least',opponent:(val('opponent')||'').toUpperCase().trim(),season:val('season')||'',before:val('before')||''};if(!Number.isInteger(f.last)||f.last<1||f.last>100)throw new Error('Choose a whole number from 1 to 100 past games.');if(!Number.isFinite(f.threshold)||f.threshold<0)throw new Error('Enter 0 or more for the number you want them to reach.');if(f.price && !(Number(f.price)>=100||Number(f.price)<=-100))throw new Error('For odds, enter +100 or higher, or -100 or lower.');if(!Number.isFinite(f.min_rate)||!Number.isFinite(f.max_rate)||f.min_rate<0||f.max_rate>100||f.min_rate>f.max_rate)throw new Error('Use percentages between 0 and 100. The minimum cannot be higher than the maximum.');state.filters=f;saveFinder();state.customTeams=$('#f-teams')?.selectedOptions?[...$('#f-teams').selectedOptions].map(o=>o.value).join(','):(val('teams')||'').toUpperCase().replace(/[^A-Z,]/g,'');state.matchup=state.customTeams||(state.selectedGame?state.selectedGame.home_abbr+','+state.selectedGame.away_abbr:'');return f}
 async function search(scrollToResults=true){let f=readFilters();const q=new URLSearchParams({sport:state.sport,player:f.player||'',teams:state.matchup,stat:f.stat,threshold:f.threshold,last:f.last,venue:f.venue,season_type:f.season_type,min_minutes:f.min_minutes,min_rate:f.min_rate,max_rate:f.max_rate,comparison:f.comparison||'at_least',opponent:f.opponent||''});if(f.season)q.set('season',f.season);if(f.before)q.set('before',f.before);let data=await req('/consistency?'+q);state.results=data;state.expanded=null;state.matchupIntel=null;
  if(state.sport==='NBA' && state.matchup){const [home,away]=state.matchup.split(',');try{const [summary,homeDvp,awayDvp]=await Promise.all([req('/matchup?'+new URLSearchParams({home,away,last:f.last,season_type:f.season_type,...(f.before?{before:f.before}:{})})),req('/dvp?'+new URLSearchParams({team:home,last:f.last,season_type:f.season_type,...(f.before?{before:f.before}:{})})),req('/dvp?'+new URLSearchParams({team:away,last:f.last,season_type:f.season_type,...(f.before?{before:f.before}:{})}))]);state.matchupIntel={summary,homeDvp,awayDvp}}catch(ex){console.warn('Matchup context unavailable',ex)}}render();if(scrollToResults)$('#player-results')?.scrollIntoView({block:'start',behavior:matchMedia('(prefers-reduced-motion: reduce)').matches?'auto':'smooth'});}
 function betMarketNames(sport){return ['Moneyline','Spread','Total Points',...(sport==='NBA'?nbaStats:sport==='NFL'?nflStats.filter(x=>x[0]!=='targets'):[]).map(x=>x[1]),'Other']}
@@ -214,7 +217,7 @@ async function ladder(btn){
  const host=document.getElementById('ladder-'+id);if(!host)return;
  host.innerHTML=`<div class="section-label" style="margin:16px 0 9px">SAME FILTERED GAMES · AT LEAST THESE NUMBERS</div><div class="chips">${data.map(d=>`<span class="chip ${d.rate>=80?'highlight':''}">${d.threshold}+ → ${num(d.rate,0)}% (${d.hits}/${d.sample})</span>`).join('')}</div>`;
 }
-function resetFilters(){state.selectedGame=null;state.snapshots=[];state.coversOdds=null;state.filters={stat:state.sport==='NBA'?'pts':'rec_yds',threshold:state.sport==='NBA'?statDefaults.NBA.pts:statDefaults.NFL.rec_yds,last:10,min_rate:50,max_rate:100,venue:'all',season_type:'regular',min_minutes:0,price:''};state.matchup='';state.customTeams='';state.results=null;state.matchupIntel=null;render()}
+function resetFilters(){state.selectedGame=null;state.snapshots=[];state.coversOdds=null;state.filters={stat:state.sport==='NBA'?'pts':'rec_yds',threshold:'',last:'',min_rate:50,max_rate:100,venue:'all',season_type:'regular',min_minutes:0,price:''};state.matchup='';state.customTeams='';state.results=null;state.matchupIntel=null;render()}
 document.addEventListener('click',async e=>{const el=e.target.closest('[data-action],[data-page]');if(!el)return;const {action,page}=el.dataset;if(page){nav(page);return}try{
  if(action==='new-bet')betDialog();else if(action==='edit-bet')betDialog(Number(el.dataset.id));
  else if(action==='close-dialog'){$('#modal-root').innerHTML='';state.dialog=null}
@@ -222,7 +225,7 @@ document.addEventListener('click',async e=>{const el=e.target.closest('[data-act
  else if(action==='export-bets'){window.location.href='/api/bets/export'}
  else if(action==='schedule-day'){setScheduleDate(el.dataset.date)}
  else if(action==='sport'||action==='match-sport'){saveFinder();state.sport=el.dataset.sport;if(action==='sport')state.page=state.sport==='NFL'?'nfl':'consistency';rememberLeague(state.sport);restoreFinder(state.sport);state.selectedGame=null;state.matchup='';state.customTeams='';state.results=null;state.scheduleDate=validScheduleDate(state.scheduleDate);render();await loadSelectableGames();refreshLiveScores()}
- else if(action==='quick-games'){$('#f-last').value=el.dataset.games;updateSearchPreview()}else if(action==='clear-filter')resetFilters();else if(action==='run-filter')await op('run-filter',search);
+ else if(action==='quick-games'){$('#f-last').value=el.dataset.games;updateSearchPreview()}else if(action==='clear-filter')resetFilters();else if(action==='finder-mode'){state.finderMode=el.dataset.mode;render()}else if(action==='finder-profile')await openFinderProfile();else if(action==='run-filter')await op('run-filter',search);
  else if(action==='show-logs'){state.expanded=state.expanded===Number(el.dataset.index)?null:Number(el.dataset.index);render()}
  else if(action==='ladder')await ladder(el);
  else if(action==='pick-game')await selectGameForStats(el);
@@ -235,8 +238,8 @@ document.addEventListener('click',async e=>{const el=e.target.closest('[data-act
  else if(action==='template')window.location.href='/api/data/template?sport='+$('#f-import-sport').value;
  else if(action==='refresh-all'){await refresh();notify('Data counters refreshed')}
  }catch(err){notify(err.message,true)}});
-document.addEventListener('input',e=>{if(e.target.id==='f-player'){state.filters.player=e.target.value;saveFinder()}if(['f-stat','f-threshold','f-last','f-min_rate','f-max_rate','f-over-line'].includes(e.target.id))updateSearchPreview();if(['bet-stake','bet-odds','bet-payout','bet-status'].includes(e.target.id))updateBetPreview()});
-document.addEventListener('keydown',e=>{if(e.target.id==='f-player'&&e.key==='Enter'&&!e.isComposing){e.preventDefault();op('run-filter',()=>search())}});
+document.addEventListener('input',e=>{if(['f-player','f-threshold','f-last','f-min_rate','f-max_rate'].includes(e.target.id)){state.filters[e.target.id.slice(2)]=e.target.value;saveFinder()}if(['f-stat','f-threshold','f-last','f-min_rate','f-max_rate','f-over-line'].includes(e.target.id))updateSearchPreview();if(['bet-stake','bet-odds','bet-payout','bet-status'].includes(e.target.id))updateBetPreview()});
+document.addEventListener('keydown',e=>{if(e.target.id==='f-player'&&e.key==='Enter'&&!e.isComposing){e.preventDefault();openFinderProfile()}});
 document.addEventListener('change',e=>{
  if(e.target.matches('#bet-form select[name="sport"]')){const picker=$('#bet-form select[name="market"]');picker.innerHTML=betMarketNames(e.target.value).map(name=>`<option>${esc(name)}</option>`).join('')}
  if(e.target.id==='schedule-date'){setScheduleDate(e.target.value);return}
@@ -244,21 +247,19 @@ document.addEventListener('change',e=>{
  if(e.target.id==='f-research-stats'){
    try{readFilters()}catch{}
    state.filters.include_research=e.target.checked;
-   if(!e.target.checked&&state.filters.stat==='targets'){state.filters.stat='rec_yds';state.filters.threshold=storedStat('rec_yds')??statDefaults.NFL.rec_yds;state.results=null}
+   if(!e.target.checked&&state.filters.stat==='targets'){state.filters.stat='rec_yds';state.filters.threshold='';state.results=null}
    saveFinder();
    const picker=$('#f-stat');picker.outerHTML=finderStatOptions(state.filters);
-   $('#f-threshold').value=$('#f-over-line').checked?state.filters.threshold:Math.ceil(state.filters.threshold);
+   $('#f-threshold').value=state.filters.threshold===''?'':$('#f-over-line').checked?state.filters.threshold:Math.ceil(state.filters.threshold);
    updateSearchPreview();return;
  }
  if(e.target.id==='f-stat'){
-   const kind=e.target.value;rememberStat(state.filters.stat,Number($('#f-threshold').value));
-   const value=storedStat(kind)??statDefaults[state.sport]?.[kind];
-   if(value!==undefined){const amount=$('#f-over-line')?.checked?value:Math.ceil(value);$('#f-threshold').value=amount;state.filters.stat=kind;state.filters.threshold=amount;}
+   state.filters.stat=e.target.value;state.filters.threshold='';$('#f-threshold').value='';state.results=null;saveFinder();
  }
  if(e.target.id==='f-matchup'){
    const selected=(state.games[state.sport]||[]).find(g=>g.id===e.target.value);
    state.selectedGame=selected||null;state.snapshots=[];state.results=null;state.matchupIntel=null;
-   $('#f-before').value=selected?gameDay(selected):'';state.filters.before=selected?gameDay(selected):'';
+   if($('#f-before'))$('#f-before').value=selected?gameDay(selected):'';state.filters.before=selected?gameDay(selected):'';
    try{readFilters()}catch{}
    render();
    if(selected){loadGameOverview(true);loadBoxScore()}

@@ -18,6 +18,13 @@ function entitySearchResults(){
  return card(esc(d.entity.name)+(d.entity.kind==='player'?' ('+esc(d.entity.position||'position unknown')+')':''),html);
 }
 function researchSearchPage(){const v=entityView,sport=entitySport(),year=new Date(todayGameDate()+'T12:00:00').getFullYear(),current=year+(sport==='NBA'&&Number(todayGameDate().slice(5,7))>=7?1:0)-(sport==='NFL'&&Number(todayGameDate().slice(5,7))<3?1:0),seasons=[['','This season'],...Array.from({length:5},(_,i)=>{const y=current-i;return [y,sport==='NBA'?`${y-1}–${y}`:String(y)]})];return pageHead('PLAYER & TEAM RESEARCH','Search','Find a player or team, season stats, game logs and box scores.',`<div class="select-tabs" role="group" aria-label="Search sport">${['NBA','NFL'].map(s=>`<button data-action="entity-sport" data-sport="${s}" class="${s===sport?'active':''}">${s}</button>`).join('')}</div>`)+card('Search players & teams',`<form id="entity-search-form" class="stack"><label for="entity-query">Player or team</label><div class="row-between" style="gap:12px"><input id="entity-query" class="input" required maxlength="150" value="${esc(v.query)}" placeholder="${sport==='NFL'?'CeeDee Lamb, Dak, Cowboys…':'LeBron, Lakers, Cavs…'}"><button class="btn btn-primary" ${v.loading?'disabled':''}>${v.loading?'Searching…':'Search'}</button></div><div class="ranking-filters">${field('Stats season',select('entity-season',seasons,v.season))}${field('Game type',select('entity-type',[['regular','Regular season'],['postseason','Playoffs'],['preseason','Preseason']],v.type))}</div></form>`)+(v.error?`<p class="note-box" role="alert">${esc(v.error)}</p>`:'')+entitySearchResults()}
+async function openFinderProfile(){
+ const query=$('#f-player')?.value.trim()||'';
+ if(!query){notify('Enter a player name to open their profile.',true);$('#f-player')?.focus();return}
+ state.filters.player=query;saveFinder();
+ Object.assign(entityView,{sport:state.sport,query,season:'',type:'regular',data:null,error:''});
+ nav('search');await runEntitySearch();
+}
 async function runEntitySearch(kind='',id=''){
  const v=entityView;v.query=$('#entity-query')?.value.trim()||v.query;v.season=$('#f-entity-season')?.value??v.season;v.type=$('#f-entity-type')?.value||v.type;
  const request=++v.request,sport=entitySport();v.loading=true;v.error='';v.data=null;render();

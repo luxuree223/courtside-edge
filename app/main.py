@@ -132,7 +132,7 @@ async def lifespan(app):
         try:await _collection_task
         except asyncio.CancelledError:pass
 
-app=FastAPI(title='Courtside Edge',version='0.18.2',lifespan=lifespan)
+app=FastAPI(title='Courtside Edge',version='0.18.3',lifespan=lifespan)
 app.mount('/static',StaticFiles(directory=str(ROOT/'static')),name='static')
 
 @app.middleware('http')
@@ -207,7 +207,7 @@ async def next_team_game(sport:str,team:str,refresh:bool=False):
 def index():return FileResponse(ROOT/'static'/'index.html',headers={'Cache-Control':'no-store'})
 
 @app.get('/api/health')
-def health(request:Request):return {'ok':True,'version':'0.18.2',**({'data':db.data_counts()} if not cloud_accounts.enabled() and (request.state.account or not accounts.configured()) else {})}
+def health(request:Request):return {'ok':True,'version':'0.18.3',**({'data':db.data_counts()} if not cloud_accounts.enabled() and (request.state.account or not accounts.configured()) else {})}
 
 @app.get('/api/cloud/config')
 def cloud_config():

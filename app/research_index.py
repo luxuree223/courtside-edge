@@ -61,6 +61,8 @@ def activity(row,sport):
 def position_match(value,position,sport):
     tokens=set(re.split(r'[/,\s-]+',ALIASES.get(str(value or '').strip().upper(),str(value or '').strip().upper())))-{''}
     target=GROUPS.get(position,{position}) if sport=='NBA' else {position}
+    if sport=='NBA' and position in ('PG','SG','SF','PF','C') and len(tokens)>1:
+        return None if tokens & target else False
     if tokens & target:return True
     # A generic G cannot establish whether the player is a PG or SG.
     if not tokens or (sport=='NBA' and ((position in ('PG','SG') and 'G' in tokens) or (position in ('PF','SF') and 'F' in tokens))):return None
@@ -120,7 +122,7 @@ def defense(sport,position,stat,season=None,season_type='regular',research_windo
         r['rank']=rank;previous=r['average']
     return {'sport':sport,'position':position,'stat':stat,'label':db.STATS[sport][stat],
             'window':w,'rows':result,'ranked_teams':sum(r['rank'] is not None for r in result),
-            'note':'Most allowed per usable game, from saved opponent player box scores. Coverage is observed records, not a guarantee of a complete box score. Games with missing stats or unresolved positions are excluded from averages, not counted as zero. Totals include reported values even in partial games. If a source omits a position, the last saved position on or before that game is used. NBA G includes G/PG/SG; F includes F/SF/PF. Hybrid roster labels may appear in more than one position view. Current-season positions can be classified using separately sourced ESPN roster/depth-chart labels, with the observation date retained. Earlier-season logs are not reclassified. No precise position is guessed from G/F labels. Roster classification is not a tracked defensive assignment or betting forecast.'}
+            'note':'Each game first combines the stats of opposing players at their published primary roster position. The combined game totals are divided by the number of games with usable records, not by the number of players. Each NBA player counts in one position only; emergency and secondary depth-chart roles are excluded. Primary positions come from season rosters at Basketball Reference and CBS Sports, with source URLs and observation dates retained. Games with missing stats or unresolved primary positions are excluded from averages rather than counted as zero. Earlier-season logs are not reclassified using current rosters. Listed positions do not measure minutes spent guarding a position.'}
 
 
 def defense_window(sport,season=None,season_type='regular',period='season'):
@@ -141,8 +143,14 @@ def defense_table(sport,position,stat,season=None,season_type='regular',period='
     tables={key:defense(sport,position,key,research_window=w,_observations=observed) for key in keys}
     base=tables[stat]
     lookup={key:{r['team']:r for r in table['rows']} for key,table in tables.items()}
-    return {**base,'columns':[{'key':key,'label':db.STATS[sport][key]} for key in keys],
-        'rows':[{**row,'stats':{key:{k:lookup[key][row['team']][k] for k in ('average','total','rank','usable_games','expected_games','partial')} for key in keys}} for row in base['rows']]}
+    coverage=None
+    from . import primary_positions
+    if sport=='NBA' and (season is None or season==primary_positions.season()):
+        with db.research_connect() as c:
+            r=c.execute("SELECT count(*),count(DISTINCT team),max(observed_at) FROM player_positions WHERE sport='NBA' AND position IN ('PG','SG','SF','PF','C')").fetchone()
+            coverage={'players':r[0],'teams':r[1],'observed_at':r[2]}
+    return {**base,'position_coverage':coverage,'columns':[{'key':key,'label':db.STATS[sport][key]} for key in keys],
+        'rows':[{**row,'stats':{key:{k:lookup[key][row['team']][k] for k in ('average','total','rank','usable_games','expected_games','partial','unclassified_rows')} for key in keys}} for row in base['rows']]}
 
 
 def summary(rows,sport):

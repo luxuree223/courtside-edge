@@ -1,3 +1,4 @@
+const gamePaceRecords=new Map();let gamePaceSource='nba';
 function teamGameCoverage(team){const a=team.games,b=team.defense_games;if(a===b&&a!==null&&a!==undefined)return a+' '+(a===1?'game':'games');return 'Available records: offense '+(a??'—')+' · allowed '+(b??'—')}
 /* Selected-game season context; separate from live scores and sportsbook prices. */
 const gameTeamChoices=new Map(),gameTeamRecords=new Map();
@@ -9,11 +10,11 @@ function gameTeamStatsBody(){
  const game=state.selectedGame;if(!game)return '';
  const choice=gameTeamChoice(),key=choice?[game.sport,choice.season,choice.type].join(':'):'',record=gameTeamRecords.get(key);
  const data=record?.data||rankCache.get(key);
- const heading=`<div class="card-head"><div><div class="eyebrow">TEAM MATCHUP</div><h3>Team Stats & League Ranks</h3></div><button class="btn btn-small" data-action="refresh-team-stats" ${record?.loading||!gameTeamConfig&&!gameTeamConfigError?'disabled':''}>${record?.loading?'Updating Stats…':'Refresh Team Stats'}</button></div>`;
+ const heading=`<div class="card-head"><div><div class="eyebrow">TEAM MATCHUP</div><h3>Team Stats & League Ranks</h3></div>${game.sport==='NBA'?'<button class="btn btn-small" data-action="sync-game-pace">Sync Pace</button>':''}<button class="btn btn-small" data-action="refresh-team-stats" ${record?.loading||!gameTeamConfig&&!gameTeamConfigError?'disabled':''}>${record?.loading?'Updating Stats…':'Refresh Team Stats'}</button></div>`;
  if(!choice||!gameTeamConfig)return heading+(gameTeamConfigError?`<p class="note-box" role="alert">${esc(gameTeamConfigError)} Refresh Team Stats tries again.</p>`:'<p class="muted" role="status">Loading team stats…</p>');
  const labels=game.sport==='NFL'?[['pass_yds','Passing Yards'],['rush_yds','Rushing Yards'],['rec','Receptions'],['rec_yds','Receiving Yards'],['rush_att','Rushing Attempts'],['pass_td','Passing Touchdowns'],['rush_td','Rushing Touchdowns'],['rec_td','Receiving Touchdowns'],['pts','Points']]:nbaStats;
  const label=metric=>labels.find(([key])=>key===metric)?.[1]||metric;
- const controls=`<div class="game-team-controls">${field('Stats season',select('game-team-season',gameTeamConfig.seasons[game.sport].map(s=>[s.value,s.label]),choice.season))}${field('Stats game type',select('game-team-type',[['regular','Regular season'],['postseason','Playoffs']],choice.type))}</div>`;
+ const controls=`<div class="game-team-controls">${field('Stats season',select('game-team-season',gameTeamConfig.seasons[game.sport].map(s=>[s.value,s.label]),choice.season))}${field('Stats game type',select('game-team-type',[['regular','Regular season'],['postseason','Playoffs']],choice.type))}${game.sport==='NBA'&&typeof paceSourceToggle==='function'?paceSourceToggle('game-pace-source',gamePaceSource):''}</div>`;
  const error=record?.error?`<p class="note-box" role="alert">${esc(record.error)}${data?' Saved stats remain below.':''}</p>`:'';
  if(!data)return heading+controls+error+(record?.loading?'<p class="muted" role="status">Getting team and opponent season stats…</p>':'<p class="muted">No saved stats for this season. Refresh Team Stats checks the source.</p>');
  const comparison=matchupLogic.teamComparison(data,game);
@@ -27,8 +28,8 @@ function gameTeamStatsBody(){
   const highlighted=edges.has(producer?.team+':'+row.metric);
   return `<td class="${highlighted?'team-stat-match':''}"><strong>${num(item.value,1)}</strong><small>#${item.rank} of ${item.total}${view==='allowed'?' most allowed':''}</small>${highlighted&&view==='offense'?'<span class="team-stat-flag">Favorable matchup</span>':''}</td>`;
  };
- const teamHeader=side=>{const team=comparison[side],source=team?.source_url,defenseSource=team?.defense_source_url;return `<th scope="colgroup" colspan="2"><div class="team-stats-name">${teamLogo(game.sport,names[side])}<span>${esc(side==='away'?game.away:game.home)}<small>${team?teamGameCoverage(team):'Team stats unavailable'}${source?` · <a target="_blank" rel="noopener noreferrer" href="${esc(safeSource(source))}">${defenseSource?'Offense':'Source'} ↗</a>`:''}${defenseSource?` · <a target="_blank" rel="noopener noreferrer" href="${esc(safeSource(defenseSource))}">Allowed ↗</a>`:''}</small></span></div></th>`};
- return heading+controls+error+`<p class="field-help">${esc(data.season_label)} ${choice.type==='regular'?'regular season':'playoffs'} · All stats per game · ${stale?'Saved stats over 24 hours old · ':''}Updated ${data.updated_at?esc(new Date(data.updated_at).toLocaleString()):'time unavailable'}.${game.season_type==='preseason'?' Selected game is preseason; these are season stats.':''}</p>
+ const teamHeader=side=>{const team=comparison[side],source=team?.source_url,defenseSource=team?.defense_source_url;return `<th scope="colgroup" colspan="2"><div class="team-stats-name">${teamLogo(game.sport,names[side])}<span>${esc(side==='away'?game.away:game.home)}${game.sport==='NBA'?gamePaceHeader(names[side],choice):''}<small>${team?teamGameCoverage(team):'Team stats unavailable'}${source?` · <a target="_blank" rel="noopener noreferrer" href="${esc(safeSource(source))}">${defenseSource?'Offense':'Source'} ↗</a>`:''}${defenseSource?` · <a target="_blank" rel="noopener noreferrer" href="${esc(safeSource(defenseSource))}">Allowed ↗</a>`:''}</small></span></div></th>`};
+ return heading+controls+error+(game.sport==='NBA'?gamePaceUpdated(choice):'')+`<p class="field-help">${esc(data.season_label)} ${choice.type==='regular'?'regular season':'playoffs'} · All stats per game · ${stale?'Saved stats over 24 hours old · ':''}Updated ${data.updated_at?esc(new Date(data.updated_at).toLocaleString()):'time unavailable'}.${game.season_type==='preseason'?' Selected game is preseason; these are season stats.':''}</p>
  <p class="field-help">Offense #1 = most produced. Allowed #1 = most allowed. Highlighted cells pair strong production with high opponent allowance.</p>
  <div class="table-scroller game-team-scroll" tabindex="0" role="region" aria-label="Team stats and league ranks for ${esc(game.away)} and ${esc(game.home)}"><table class="table game-team-table"><thead><tr><th class="team-stat-category" scope="col" rowspan="2">STAT / GAME</th>${teamHeader('away')}${teamHeader('home')}</tr><tr><th scope="col">OFFENSE</th><th scope="col">ALLOWED</th><th scope="col">OFFENSE</th><th scope="col">ALLOWED</th></tr></thead><tbody>${labels.map(([metric])=>comparison.rows.find(r=>r.metric===metric)).filter(Boolean).map(row=>`<tr><th class="team-stat-category" scope="row">${esc(label(row.metric))}</th>${cell(row,'away','offense')}${cell(row,'away','allowed')}${cell(row,'home','offense')}${cell(row,'home','allowed')}</tr>`).join('')}</tbody></table></div>
  ${data.errors?.length?`<p class="field-help">${data.errors.length} team updates were unavailable. Ranks use teams with a reported value in each category.</p>`:''}
@@ -46,6 +47,7 @@ async function loadGameTeamStats(force=false){
   }
   let choice=gameTeamChoices.get(selectedKey);
   if(!choice){choice={season:gameTeamConfig.defaults[game.sport],type:game.season_type==='postseason'?'postseason':'regular'};gameTeamChoices.set(selectedKey,choice)}
+  if(game.sport==='NBA')loadGamePace(choice,force);
   const key=[game.sport,choice.season,choice.type].join(':'),existing=gameTeamRecords.get(key);
   if(existing?.loading){paintGameTeamStats();return}
   let cached=rankCache.get(key)||existing?.data;
@@ -67,3 +69,23 @@ document.addEventListener('change',e=>{
  if(e.target.id==='f-game-team-season')choice.season=Number(e.target.value);else choice.type=e.target.value;
  paintGameTeamStats();loadGameTeamStats();
 });
+
+function gamePaceHeader(team,choice){
+ const record=gamePaceRecords.get([gamePaceSource,choice.season,choice.type].join(':')),d=record?.data,row=d?.rows.find(r=>r.team===team);
+ const source=gamePaceSource==='nba'?'NBA.com':'Hollinger';
+ if(gamePaceSource==='hollinger'&&choice.type!=='regular')return '<small>Hollinger pace: regular season only</small>';
+ if(!row||row.pace===null)return `<small>Pace · ${source}: ${record?.loading?'Loading…':'Unavailable'}</small>`;
+ return `<small class="team-pace"><strong>Pace ${Number(row.pace).toFixed(2)}</strong> · #${row.rank} · <a href="${esc(d.source_url)}" target="_blank" rel="noopener noreferrer">${source} ↗</a>${d.stale?' · Saved data':''}</small>`;
+}
+async function loadGamePace(choice,force=false){
+ const source=gamePaceSource,key=[source,choice.season,choice.type].join(':'),existing=gamePaceRecords.get(key);
+ if(source==='hollinger'&&choice.type!=='regular')return;
+ if(existing?.loading||(!force&&existing?.data&&Date.now()-existing.at<60000))return;
+ gamePaceRecords.set(key,{...existing,loading:true});
+ try{const params=new URLSearchParams({source,season:choice.season,season_type:choice.type});if(force)params.set('refresh','true');const data=await req('/rankings/pace?'+params);gamePaceRecords.set(key,{data,at:Date.now()})}
+ catch(error){gamePaceRecords.set(key,{data:existing?.data?{...existing.data,stale:true}:null,error:error.message,at:Date.now()})}
+ finally{const current=gameTeamChoice();if(state.selectedGame?.sport==='NBA'&&current&&[gamePaceSource,current.season,current.type].join(':')===key)paintGameTeamStats()}
+}
+document.addEventListener('click',e=>{const el=e.target.closest('[data-action="game-pace-source"]');if(e.target.closest('[data-action="sync-game-pace"]')){const c=gameTeamChoice();if(c)loadGamePace(c,true);paintGameTeamStats()}if(el){gamePaceSource=el.dataset.source;const choice=gameTeamChoice();if(choice)loadGamePace(choice);paintGameTeamStats()}});
+
+function gamePaceUpdated(choice){const r=gamePaceRecords.get([gamePaceSource,choice.season,choice.type].join(':')),d=r?.data;if(!d)return '';return `<p class="field-help">${esc(d.source)} pace stats updated ${esc(new Date(d.updated_at).toLocaleString())}${r.loading?' · Syncing…':''}${d.stale?' · Saved data; source refresh unavailable':''}</p>`}

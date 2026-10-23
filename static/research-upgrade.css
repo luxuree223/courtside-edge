@@ -56,3 +56,7 @@
 @media(max-width:600px){.defense-season-controls>.field{width:100%}.defense-season-controls>.select-tabs{width:max-content}}
 
 .pace-team-abbr{display:none}.pace-table td:nth-child(2){white-space:nowrap}.pace-table .team-logo{vertical-align:middle;margin-right:6px}@media(max-width:600px){.pace-team-name{display:none}.pace-team-abbr{display:inline;text-decoration:none}.pace-table th,.pace-table td{padding:10px 8px}.pace-table{min-width:610px}}
+
+.pace-filters{margin-top:16px}.team-pace strong{color:var(--accent);font-size:13px}
+
+.pace-updated{display:block;font-size:10px;font-weight:400;margin-top:3px}

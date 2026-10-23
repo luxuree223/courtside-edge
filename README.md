@@ -1,10 +1,12 @@
-# Courtside Edge 0.18.2
+# Courtside Edge 0.18.3
 
 Player research now puts the game picker first, separates direct profile search from the Consistency finder, and starts stat/recent-game targets blank. NBA position filters offer PG, SG, SF, PF and C only. The mobile defense table uses a narrow rank/logo/abbreviation column to leave room for stats.
 
 Defense vs Position uses the full table with a clear team divider, matchup color guide and spacing beneath the season controls. Rankings uses a consistent SVG arrow on mobile and desktop, places data coverage inside the rankings card, and moves Matchup Opportunities to the bottom.
 
 The owner may provide one server-managed AI connection for every authenticated account using EDGE_SHARED_AI_KEY=1 and OPENAI_API_KEY in the host environment. OPENAI_MODEL selects the owner's model. Account pages show connection status without exposing or changing the shared credential. Sportsbook/provider credentials remain separate. Local Windows owners can opt in with share_with_accounts: true in their private data/ai-config.json; the encrypted key stays outside the source package. Shared AI requests use the owner's API allowance. The public site still requires the owner key to be configured in Render; it is never part of GitHub or this ZIP.
+
+Position-defense values combine all opposing players at one primary position within each game, then average those game totals. They do not divide by player count. The primary-position correction removes the old emergency-role overlap. Player profiles show per-game averages without a totals column, the sport switch is compact, and game selectors use plain Select game/no-games messages.
 
 The signed-in homepage has a pencil beside Your Current Betting Money to edit starting/current amounts and unit size. Balance corrections are separate from wager profit and persist in Firebase and JSON backups. A completed login sync opens the app automatically; Retry appears only for failures.
 

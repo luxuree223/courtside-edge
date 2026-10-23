@@ -1,10 +1,13 @@
 """Season roster positions, never emergency depth-chart eligibility."""
-import json,re,datetime as dt
+import json,re,datetime as dt,time
 from pathlib import Path
 from bs4 import BeautifulSoup
 from . import db
 
 NBA_POSITIONS={'PG','SG','SF','PF','C'}
+PROFILE_POSITIONS={'Point Guard':'PG','Shooting Guard':'SG','Small Forward':'SF','Power Forward':'PF','Center':'C'}
+_profile_cache={}
+_directory_cache={}
 REFERENCE_CODES={'BKN':'BRK','PHX':'PHO','GS':'GSW','NY':'NYK','NO':'NOP','SA':'SAS','UTAH':'UTA','WSH':'WAS','CHA':'CHO'}
 
 
@@ -22,6 +25,48 @@ def name_key(name):
     key=db.player_name_key(name)
     # The Detroit roster sources use Ron and Ronald for the same player.
     return {'ronaldholland':'ronholland'}.get(key,key)
+
+
+def profile_position(html):
+    """Accept an explicit single primary position, never multi-position eligibility."""
+    soup=BeautifulSoup(html,'html.parser');meta=soup.select_one('#meta')
+    if not meta:return None
+    for p in meta.select('p'):
+        text=p.get_text(' ',strip=True)
+        if 'Position:' not in text:continue
+        value=re.split(r'▪|Shoots:',text.split('Position:',1)[1])[0].strip()
+        return PROFILE_POSITIONS.get(value)
+    return None
+
+
+async def lookup_profile(client,name):
+    """Public identity directory fallback for new signings missing from team rosters."""
+    key=name_key(name);now=time.monotonic();cached=_profile_cache.get(key)
+    if cached and now-cached[0]<(86400 if cached[1] else 3600):return cached[1]
+    words=re.sub(r'\s+(?:Jr\.?|Sr\.?|II|III|IV)$','',name.strip(),flags=re.I).split()
+    letter=name_key(words[-1])[:1] if words else ''
+    if not re.fullmatch('[a-z]',letter):return None
+    try:
+        directory=_directory_cache.get(letter)
+        if not directory or now-directory[0]>86400:
+            response=await client.get(f'https://www.basketball-reference.com/players/{letter}/');response.raise_for_status()
+            soup=BeautifulSoup(response.text,'html.parser');links={}
+            for a in soup.select('table#players [data-stat="player"] a[href]'):
+                href=a.get('href','')
+                if re.fullmatch(r'/players/[a-z]/[a-z0-9]+\.html',href):
+                    links.setdefault(name_key(a.get_text(strip=True)),set()).add(href)
+            directory=(now,links);_directory_cache[letter]=directory
+        matches=directory[1].get(key,set())
+        result=None
+        if len(matches)==1:
+            url='https://www.basketball-reference.com'+next(iter(matches))
+            response=await client.get(url);response.raise_for_status();pos=profile_position(response.text)
+            if pos:result={'position':pos,'source_url':url}
+        _profile_cache[key]=(now,result)
+        return result
+    except Exception:
+        _profile_cache[key]=(now,None)
+        return None
 
 
 def secondary_roster_url(team):

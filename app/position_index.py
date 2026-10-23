@@ -24,11 +24,20 @@ def depth_positions(payload):
     return {pid:'/'.join(dict.fromkeys(values)) for pid,values in found.items()}
 
 async def refresh(sport,teams=None):
+    from .research_index import catalog
+    league_teams=catalog(sport)
     with db.research_connect() as c:
         ensure(c,sport)
         if teams is None:
             teams={str(r[0]):r[1] for r in c.execute('SELECT home_id,home_abbr FROM games WHERE sport=? UNION SELECT away_id,away_abbr FROM games WHERE sport=?',(sport,sport)) if str(r[0]).isdigit()}
-    limit=asyncio.Semaphore(5);issues=[];count=0
+        teams={tid:abbr for tid,abbr in teams.items() if db.normalize_team(sport,abbr) in league_teams}
+        # A transfer does not erase a verified primary position. Conflicting
+        # published assignments still require the new team's roster to resolve.
+        by_player={}
+        for row in c.execute('SELECT * FROM player_positions WHERE sport=? ORDER BY observed_at DESC',(sport,)):
+            by_player.setdefault(row['player_id'],[]).append(dict(row))
+        fallback={pid:rows[0] for pid,rows in by_player.items() if len({r['position'] for r in rows})==1}
+    limit=asyncio.Semaphore(5);profile_limit=asyncio.Semaphore(1);issues=[];count=0
     async with httpx.AsyncClient(timeout=18,headers={'User-Agent':providers.USER_AGENT}) as client:
         async def team(tid,abbr):
             nonlocal count
@@ -50,17 +59,23 @@ async def refresh(sport,teams=None):
                             try:
                                 response=await client.get(primary_url);response.raise_for_status()
                                 precise=primary_positions.parse_secondary_roster(response.text,primary_positions.season())
-                            except Exception:issues.append(abbr+': primary-position source unavailable; using verified cached positions')
+                            except Exception:pass  # Keep sourced cached records; report only actual gaps below.
                     stamp=dt.datetime.now(dt.timezone.utc).isoformat();rows=[]
                     for p in items:
                         pid=str(p.get('id',''))
                         if sport=='NBA':
                             # Retain a fresh verified primary assignment. Secondary
                             # roster pages fill missing/stale records, never depth roles.
-                            prior=cached.get(pid)
+                            prior=cached.get(pid) or fallback.get(pid)
+                            if prior and pid not in cached:
+                                rows.append((sport,pid,code,prior['position'],prior['source_url'],prior['observed_at']))
                             if prior and prior['observed_at']>=cutoff:continue
                             pos=precise.get(primary_positions.name_key(p.get('displayName',''))) or precise.get(primary_positions.name_key(p.get('fullName','')))
                             source=primary_url
+                            if not pos and not prior:
+                                async with profile_limit:
+                                    profile=await primary_positions.lookup_profile(client,p.get('displayName') or p.get('fullName',''))
+                                if profile:pos=profile['position'];source=profile['source_url']
                             if not pos and not prior:issues.append(abbr+': primary position unverified for '+p.get('displayName',pid))
                         else:pos=(p.get('position') or {}).get('abbreviation','');source=base+'/roster'
                         if pid and pos:rows.append((sport,pid,db.normalize_team(sport,abbr),pos,source,stamp))
@@ -78,8 +93,14 @@ async def refresh(sport,teams=None):
 def resolve(sport,people):
     with db.research_connect() as c:
         ensure(c,sport);indexed={(r['player_id'],r['team']):dict(r) for r in c.execute('SELECT * FROM player_positions WHERE sport=?',(sport,))}
+    by_player={}
+    for item in indexed.values():by_player.setdefault(item['player_id'],[]).append(item)
     for p in people:
         item=indexed.get((str(p['player_id']),db.normalize_team(sport,p['team'])))
+        if item is None and sport=='NBA':
+            candidates=by_player.get(str(p['player_id']),[])
+            if candidates and len({r['position'] for r in candidates})==1:
+                item=max(candidates,key=lambda r:r['observed_at'])
         current=dt.date.today();year=current.year-(current.month<(7 if sport=='NBA' else 3))
         start=f'{year}-{7 if sport=="NBA" else 3:02d}-01'
         if p.get('game_date') and p['game_date']<start:continue

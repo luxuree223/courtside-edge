@@ -9,7 +9,7 @@ from fastapi.responses import FileResponse, HTMLResponse, PlainTextResponse, JSO
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 from . import db,providers,markets,history,covers,covers_odds,rankings,ai,props,live,player_opportunities,ai_research,stat_logs,leader_slates,research_index,accounts,next_opponent,discovery,personal_backup,cloud_accounts
-from . import game_research, position_index, index_questions, odds_sources
+from . import game_research, position_index, index_questions, odds_sources, pace
 
 ROOT=Path(__file__).resolve().parent.parent
 _sync_lock=asyncio.Lock()
@@ -132,7 +132,7 @@ async def lifespan(app):
         try:await _collection_task
         except asyncio.CancelledError:pass
 
-app=FastAPI(title='Courtside Edge',version='0.18.3',lifespan=lifespan)
+app=FastAPI(title='Courtside Edge',version='0.18.4',lifespan=lifespan)
 app.mount('/static',StaticFiles(directory=str(ROOT/'static')),name='static')
 
 @app.middleware('http')
@@ -207,7 +207,7 @@ async def next_team_game(sport:str,team:str,refresh:bool=False):
 def index():return FileResponse(ROOT/'static'/'index.html',headers={'Cache-Control':'no-store'})
 
 @app.get('/api/health')
-def health(request:Request):return {'ok':True,'version':'0.18.3',**({'data':db.data_counts()} if not cloud_accounts.enabled() and (request.state.account or not accounts.configured()) else {})}
+def health(request:Request):return {'ok':True,'version':'0.18.4',**({'data':db.data_counts()} if not cloud_accounts.enabled() and (request.state.account or not accounts.configured()) else {})}
 
 @app.get('/api/cloud/config')
 def cloud_config():
@@ -633,6 +633,11 @@ def rankings_config():
 @app.get('/api/rankings/positions')
 def position_rankings(sport:str='NFL',position:str='TE',stat:str='rec_td',season:int|None=None,season_type:str='regular',period:str='season'):
     try:return research_index.defense(sport,position,stat,research_window=research_index.defense_window(sport,season,season_type,period))
+    except ValueError as ex:raise HTTPException(400,str(ex))
+
+@app.get('/api/rankings/pace')
+async def pace_rankings(season:int|None=None,season_type:str='regular',last:int|None=Query(None,ge=1,le=100),refresh:bool=False):
+    try:return await pace.rankings(season,season_type,last,refresh)
     except ValueError as ex:raise HTTPException(400,str(ex))
 
 @app.get('/api/rankings/positions/full')

@@ -96,7 +96,7 @@ CREATE TABLE IF NOT EXISTS sync_runs (
 
 SEED_BETS = []
 
-SCHEMA_VERSION = 11
+SCHEMA_VERSION = 12
 
 def backup_database():
     """SQLite's backup API includes committed WAL records, unlike copying one file."""
@@ -139,7 +139,7 @@ def init_db(seed=True):
             db.execute("ALTER TABLE player_logs ADD COLUMN position TEXT NOT NULL DEFAULT ''")
         for table,columns in {
             'team_logs':{'game_minutes':'REAL','source_url':"TEXT NOT NULL DEFAULT ''"},
-            'player_logs':{'source_url':"TEXT NOT NULL DEFAULT ''",'rush_td':'REAL','rec_td':'REAL'},
+            'player_logs':{'source_url':"TEXT NOT NULL DEFAULT ''",'rush_td':'REAL','rec_td':'REAL','fgm':'REAL'},
             'market_quotes':{'commence_time':"TEXT NOT NULL DEFAULT ''",'provider_updated_at':"TEXT NOT NULL DEFAULT ''",'observed_game_state':"TEXT NOT NULL DEFAULT 'unknown'",'batch_id':"TEXT NOT NULL DEFAULT ''"},
         }.items():
             present={r[1] for r in db.execute(f'PRAGMA table_info({table})')}
@@ -247,7 +247,7 @@ def bets_csv():
     return output.getvalue()
 
 GAME_FIELDS=['id','sport','starts_at','home_id','home','home_abbr','away_id','away','away_abbr','home_score','away_score','status','season_type']
-LOG_FIELDS=['sport','game_id','player_id','player','team','opponent','position','game_date','is_home','season_type','minutes','pts','reb','ast','fg3m','stl','blk','fga','oreb','dreb','tov','rec','rec_yds','targets','rush_att','rush_yds','pass_yds','pass_td','rush_td','rec_td','source','source_url']
+LOG_FIELDS=['sport','game_id','player_id','player','team','opponent','position','game_date','is_home','season_type','minutes','pts','reb','ast','fg3m','stl','blk','fgm','fga','oreb','dreb','tov','rec','rec_yds','targets','rush_att','rush_yds','pass_yds','pass_td','rush_td','rec_td','source','source_url']
 TEAM_FIELDS=['sport','game_id','team','opponent','game_date','is_home','season_type','pts','opp_pts','fga','fta','oreb','tov','possessions','game_minutes','source_url']
 
 def normalize_team(sport,value):

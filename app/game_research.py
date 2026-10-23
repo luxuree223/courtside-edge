@@ -4,7 +4,7 @@ import httpx
 from . import db,covers,providers,stat_logs,props,markets,position_index,odds_sources
 
 _rosters={}
-NBA=[('pts','PTS'),('reb','REB'),('ast','AST'),('fg3m','3PM'),('stl','STL'),('blk','BLK'),('minutes','MIN'),('tov','TO'),('fga','FGA')]
+NBA=[('pts','PTS'),('reb','REB'),('ast','AST'),('fg3m','3PM'),('stl','STL'),('blk','BLK'),('minutes','MIN'),('tov','TO'),('fgm','FGM'),('fga','FGA')]
 def columns(sport,position):
     if sport=='NBA':return NBA
     p=str(position or '').upper()

@@ -116,7 +116,8 @@ def nba_player_logs(payload,game):
                     'pts':number(stats.get('PTS'),None),'reb':number(stats.get('REB'),None),
                     'ast':number(stats.get('AST'),None),'fg3m':number(str(stats.get('3PT','')).split('-')[0],None),
                     'stl':number(stats.get('STL')),'blk':number(stats.get('BLK')),
-                    'fga':number(str(stats.get('FG','0')).split('-')[-1]),
+                    'fgm':number(str(stats.get('FG','')).split('-')[0],None),
+                    'fga':number(str(stats.get('FG','')).split('-')[-1],None),
                     'oreb':number(stats.get('OREB')),'dreb':number(stats.get('DREB')),
                     'tov':number(stats.get('TO'))}
                 if row['minutes']==0 and entry.get('didNotPlay'):continue
@@ -244,6 +245,10 @@ async def sync_dates(sport,start,end,include_scheduled=True,skip_saved=False,pro
                     if skip_saved and day<datetime.date.today()-datetime.timedelta(days=2):
                         with store.research_connect() as saved:
                             exists=saved.execute('SELECT 1 FROM player_logs WHERE sport=? AND game_id=? LIMIT 1',(sport,g['id'])).fetchone()
+                        if exists and sport=='NBA':
+                            with store.research_connect() as saved:
+                                incomplete=saved.execute("SELECT 1 FROM player_logs WHERE sport='NBA' AND game_id=? AND fgm IS NULL LIMIT 1",(g['id'],)).fetchone()
+                            if incomplete:exists=None
                         if exists:continue
                     # An empty or partial game summary must not overwrite existing logs
                     try:
@@ -279,7 +284,7 @@ NBA_MAP={'player_id':['player_id','athlete_id','espn_id'], 'player':['player','p
  'game_date':['game_date','date','game_date_utc','start_date'], 'minutes':['minutes','min'],
  'pts':['pts','points'],'reb':['reb','rebounds','total_rebounds'],'ast':['ast','assists'],
  'fg3m':['fg3m','three_point_field_goals_made','three_pointers_made'],
- 'stl':['stl','steals'],'blk':['blk','blocks'],'fga':['fga','field_goals_attempted'],
+ 'stl':['stl','steals'],'blk':['blk','blocks'],'fgm':['fgm','field_goals_made'],'fga':['fga','field_goals_attempted'],
  'oreb':['oreb','offensive_rebounds'],'dreb':['dreb','defensive_rebounds'],'tov':['tov','turnovers'],
  'is_home':['is_home','home','home_away']}
 NFL_MAP={'player_id':['player_id','player_id_gsis','gsis_id','athlete_id'],

@@ -12,7 +12,7 @@ import httpx
 from . import db, providers, live, covers
 
 BOX_COLUMNS = {
-    'NBA': [('minutes','MIN'),('pts','PTS'),('reb','REB'),('ast','AST'),('fg3m','3PM'),('stl','STL'),('blk','BLK'),('tov','TO'),('fga','FGA')],
+    'NBA': [('minutes','MIN'),('pts','PTS'),('reb','REB'),('ast','AST'),('fg3m','3PM'),('stl','STL'),('blk','BLK'),('tov','TO'),('fgm','FGM'),('fga','FGA')],
     'NFL': [('pass_yds','Passing Yards'),('pass_td','Passing TDs'),('rush_att','Rushing Attempts'),('rush_yds','Rushing Yards'),('rush_td','Rushing TDs'),('rec','Receptions'),('targets','Targets'),('rec_yds','Receiving Yards'),('rec_td','Receiving TDs')]
 }
 STAT_PHRASES = {

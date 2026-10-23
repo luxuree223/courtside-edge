@@ -138,7 +138,10 @@ def defense_window(sport,season=None,season_type='regular',period='season'):
 def defense_table(sport,position,stat,season=None,season_type='regular',period='season'):
     w=defense_window(sport,season,season_type,period);observed=logs(sport,w)
     keys=list(db.STATS[sport])
-    if sport=='NFL':keys=[k for k in keys if k not in ('pass_yds','pass_td') or position.upper()=='QB']
+    if sport=='NFL':
+        keys=[k for k in keys if k not in ('pass_yds','pass_td') or position.upper()=='QB']
+        first=['pass_yds','pass_td','rush_yds','rush_att','rush_td'] if position.upper()=='QB' else ['rush_yds','rush_att','rush_td'] if position.upper() in ('RB','FB') else ['rec','rec_yds','targets','rec_td']
+        keys=[k for k in first if k in keys]+[k for k in keys if k not in first]
     if stat not in keys:stat=keys[0]
     tables={key:defense(sport,position,key,research_window=w,_observations=observed) for key in keys}
     base=tables[stat]
@@ -147,7 +150,7 @@ def defense_table(sport,position,stat,season=None,season_type='regular',period='
     from . import primary_positions
     if sport=='NBA' and (season is None or season==primary_positions.season()):
         with db.research_connect() as c:
-            r=c.execute("SELECT count(*),count(DISTINCT team),max(observed_at) FROM player_positions WHERE sport='NBA' AND position IN ('PG','SG','SF','PF','C')").fetchone()
+            r=c.execute("SELECT count(DISTINCT player_id),count(DISTINCT team),max(observed_at) FROM player_positions WHERE sport='NBA' AND position IN ('PG','SG','SF','PF','C')").fetchone()
             coverage={'players':r[0],'teams':r[1],'observed_at':r[2]}
     return {**base,'position_coverage':coverage,'columns':[{'key':key,'label':db.STATS[sport][key]} for key in keys],
         'rows':[{**row,'stats':{key:{k:lookup[key][row['team']][k] for k in ('average','total','rank','usable_games','expected_games','partial','unclassified_rows')} for key in keys}} for row in base['rows']]}

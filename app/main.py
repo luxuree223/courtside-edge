@@ -9,7 +9,7 @@ from fastapi.responses import FileResponse, HTMLResponse, PlainTextResponse, JSO
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 from . import db,providers,markets,history,covers,covers_odds,rankings,ai,props,live,player_opportunities,ai_research,stat_logs,leader_slates,research_index,accounts,next_opponent,discovery,personal_backup,cloud_accounts
-from . import game_research
+from . import game_research, position_index, index_questions, odds_sources
 
 ROOT=Path(__file__).resolve().parent.parent
 _sync_lock=asyncio.Lock()
@@ -109,6 +109,7 @@ async def nightly_scheduler():
                         for sport in ['NBA','NFL']:
                             result=await providers.sync_dates(sport,(now.date()-datetime.timedelta(days=2)).isoformat(),now.date().isoformat())
                             success=success and not result.get('errors')
+                            await position_index.refresh(sport)
                         if success:
                             with db.connect() as connection:
                                 connection.execute("INSERT INTO settings(key,value) VALUES ('last_nightly_success',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",(today,))
@@ -131,7 +132,7 @@ async def lifespan(app):
         try:await _collection_task
         except asyncio.CancelledError:pass
 
-app=FastAPI(title='Courtside Edge',version='0.17.0',lifespan=lifespan)
+app=FastAPI(title='Courtside Edge',version='0.18.0',lifespan=lifespan)
 app.mount('/static',StaticFiles(directory=str(ROOT/'static')),name='static')
 
 @app.middleware('http')
@@ -206,7 +207,7 @@ async def next_team_game(sport:str,team:str,refresh:bool=False):
 def index():return FileResponse(ROOT/'static'/'index.html',headers={'Cache-Control':'no-store'})
 
 @app.get('/api/health')
-def health(request:Request):return {'ok':True,'version':'0.17.0',**({'data':db.data_counts()} if not cloud_accounts.enabled() and (request.state.account or not accounts.configured()) else {})}
+def health(request:Request):return {'ok':True,'version':'0.18.0',**({'data':db.data_counts()} if not cloud_accounts.enabled() and (request.state.account or not accounts.configured()) else {})}
 
 @app.get('/api/cloud/config')
 def cloud_config():
@@ -214,9 +215,21 @@ def cloud_config():
     except cloud_accounts.CloudError as ex:raise HTTPException(ex.status,ex.message)
 
 @app.get('/api/public/home')
-def public_home():
-    date=tz_today().date().isoformat()
-    return {'date':date,'games':{sport:db.games_list(sport,date,date,100) for sport in ('NBA','NFL')}}
+async def public_home():
+    today=tz_today().date();games={};dates={};issues={}
+    async def slate(sport):
+        board=await live.scoreboard(sport,today.isoformat())
+        rows=board['games'];chosen=today
+        # Keep a still-live late game, never a completed previous-day slate.
+        yesterday=await live.scoreboard(sport,(today-datetime.timedelta(days=1)).isoformat())
+        late=[g for g in yesterday['games'] if g['status']=='live']
+        if late:rows=yesterday['games'];chosen=today-datetime.timedelta(days=1)
+        elif rows and not board.get('stale') and all(g['status']=='final' for g in rows):
+            chosen=today+datetime.timedelta(days=1);board=await live.scoreboard(sport,chosen.isoformat());rows=board['games']
+        games[sport]=rows;dates[sport]=chosen.isoformat();issues[sport]=board.get('error','')
+    await asyncio.gather(*(slate(sport) for sport in ('NBA','NFL')))
+    return {'date':today.isoformat(),'dates':dates,'games':games,'issues':issues}
+
 
 class CloudUnit(BaseModel):
     unit_size:float=Field(ge=.01,le=1_000_000)
@@ -413,6 +426,38 @@ async def sync(sport:str=Query('NBA'),start:str=Query(...),end:str=Query(...)):
     except ValueError as ex:raise HTTPException(400,str(ex))
 
 
+async def _login_collection(plans):
+    try:
+        async with _sync_lock:
+            for sport,start,end in plans:
+                _collection_status['message']='Checking '+sport+' season game logs…'
+                def progress(date):
+                    _collection_status['completed_days']+=1
+                    _collection_status['message']=f'{sport}: checked games through {date}'
+                for a,b in date_chunks(start,end):
+                    result=await providers.sync_dates(sport,a.isoformat(),b.isoformat(),skip_saved=True,progress=progress)
+                    _collection_status['games']+=result['games'];_collection_status['player_logs']+=result['player_logs']
+                    _collection_status['errors'].extend(result.get('errors',[])[:10])
+                _collection_status['message']='Verifying '+sport+' player positions against ESPN rosters…'
+                result=await position_index.refresh(sport)
+                _collection_status['errors'].extend(result['issues'][:10])
+        _collection_status['message']='Sync complete' if not _collection_status['errors'] else 'Sync finished with source gaps. Review the details before researching.'
+    except Exception as ex:
+        _collection_status['errors'].append(str(ex)[:180]);_collection_status['message']='Sync could not finish. Retry to complete the update.'
+    finally:_collection_status['running']=False
+
+@app.post('/api/data/login-sync')
+async def login_sync():
+    global _collection_status,_collection_task
+    if _collection_status['running']:return dict(_collection_status)
+    if _sync_lock.locked():raise HTTPException(409,'A scheduled stats update is finishing. Retry the sign-in sync shortly.')
+    plans=[(sport,*current_season_dates(sport)) for sport in ('NBA','NFL')]
+    _collection_status={'running':True,'mode':'login','sport':'NBA + NFL','completed_days':0,
+        'total_days':sum((end-start).days+1 for _,start,end in plans),'games':0,'player_logs':0,'errors':[],
+        'message':'Checking this season’s ESPN NBA and NFL game logs…'}
+    _collection_task=asyncio.create_task(_login_collection(plans))
+    return dict(_collection_status)
+
 @app.post('/api/data/sync-tonight')
 async def sync_tonight():
     today=tz_today().date()
@@ -452,6 +497,15 @@ def csv_template(sport:str='NBA'):
 
 
 # Free bookmaker comparisons and saved team betting trends.
+class OddsSourceIn(BaseModel):
+    provider:str
+    key:str=Field(default='',max_length=250)
+@app.get('/api/odds/sources')
+def odds_source_status():return odds_sources.status()
+@app.put('/api/odds/sources')
+def odds_source_configure(body:OddsSourceIn):
+    try:return odds_sources.configure(body.provider,body.key)
+    except ValueError as ex:raise HTTPException(400,str(ex))
 @app.get('/api/odds/status')
 def odds_status():return markets.key_status()
 
@@ -555,7 +609,7 @@ async def ask(q:AskIn):
                 _last_odds_search[q.sport.upper()]=time.monotonic()
             except ValueError as ex:note='Could not refresh sportsbook prices: '+str(ex)
     try:
-        answer=markets.question_answer(q.question,q.sport)
+        answer=index_questions.answer(q.question,q.sport) or markets.question_answer(q.question,q.sport)
         if note:answer['answer']=note+'\n'+answer['answer']
         return answer
     except ValueError as ex:raise HTTPException(400,str(ex))
@@ -566,13 +620,13 @@ def rankings_config():
     return rankings.config()
 
 @app.get('/api/rankings/positions')
-def position_rankings(sport:str='NFL',position:str='TE',stat:str='rec_td',season:int|None=None,season_type:str='regular'):
-    try:return research_index.defense(sport,position,stat,season,season_type)
+def position_rankings(sport:str='NFL',position:str='TE',stat:str='rec_td',season:int|None=None,season_type:str='regular',period:str='season'):
+    try:return research_index.defense(sport,position,stat,research_window=research_index.defense_window(sport,season,season_type,period))
     except ValueError as ex:raise HTTPException(400,str(ex))
 
 @app.get('/api/rankings/positions/full')
-def position_full_table(sport:str='NFL',position:str='TE',stat:str='rec_td',season:int|None=None,season_type:str='regular'):
-    try:return research_index.defense_table(sport,position,stat,season,season_type)
+def position_full_table(sport:str='NFL',position:str='TE',stat:str='rec_td',season:int|None=None,season_type:str='regular',period:str='season'):
+    try:return research_index.defense_table(sport,position,stat,season,season_type,period)
     except ValueError as ex:raise HTTPException(400,str(ex))
 
 @app.get('/api/search/entities')

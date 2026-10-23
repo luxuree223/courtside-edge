@@ -10,6 +10,17 @@ PROFILE_PATH=ContextVar('courtside_profile_path',default=None)
 def database_path():return PROFILE_PATH.get() or DB_PATH
 
 @contextmanager
+def research_connect():
+    # Only public sports records are shared. Tracker/settings/quotes/keys keep
+    # using connect() in the authenticated person's private database.
+    token=PROFILE_PATH.set(None) if os.environ.get('EDGE_FIREBASE_ENABLED')=='1' else None
+    try:
+        with connect() as connection:yield connection
+    finally:
+        if token is not None:PROFILE_PATH.reset(token)
+
+
+@contextmanager
 def connect():
     path=database_path();path.parent.mkdir(parents=True, exist_ok=True)
     db = sqlite3.connect(path, timeout=25)
@@ -85,7 +96,7 @@ CREATE TABLE IF NOT EXISTS sync_runs (
 
 SEED_BETS = []
 
-SCHEMA_VERSION = 10
+SCHEMA_VERSION = 11
 
 def backup_database():
     """SQLite's backup API includes committed WAL records, unlike copying one file."""
@@ -117,6 +128,8 @@ def init_db(seed=True):
         db.executescript(ai_research.SCHEMA)
         db.executescript(research_tools.SCHEMA)
         db.executescript(leader_slates.SCHEMA)
+        from . import position_index
+        db.executescript(position_index.SCHEMA)
         from . import accounts
         db.executescript(accounts.SCHEMA)
         db.execute('INSERT OR IGNORE INTO settings(key,value) VALUES (?,?)', ('starting_bankroll','0'))
@@ -270,7 +283,7 @@ def save_team_logs(db, rows):
     db.executemany(stmt, [[r.get(f,'' if f=='source_url' else None) for f in TEAM_FIELDS] for r in rows])
 
 def games_list(sport='NBA', start=None, end=None, limit=100):
-    with connect() as db:
+    with research_connect() as db:
         q='SELECT * FROM games WHERE sport=?';params=[sport]
         if start:q+=' AND substr(starts_at,1,10)>=?';params.append(start)
         if end:q+=' AND substr(starts_at,1,10)<=?';params.append(end)
@@ -278,7 +291,7 @@ def games_list(sport='NBA', start=None, end=None, limit=100):
         return [dict(r) for r in db.execute(q,params)]
 
 def data_counts():
-    with connect() as db:
+    with research_connect() as db:
         stats={}
         for sport in ['NBA','NFL']:
             games=db.execute('SELECT COUNT(*) FROM games WHERE sport=? AND status=?',(sport,'final')).fetchone()[0]
@@ -328,7 +341,7 @@ def consistency(sport='NBA', teams=None, stat='pts', threshold=20, min_rate=50, 
     player_query=player_name_key(player)
     if player.strip() and not player_query:return []
     reached=lambda v:v>=threshold if comparison=='at_least' else v>threshold
-    with connect() as db:
+    with research_connect() as db:
         kinds=season_types or [season_type]
         query='SELECT * FROM player_logs WHERE sport=? AND season_type IN ('+','.join('?' for _ in kinds)+')';params=[sport,*kinds]
         # Select players by their latest known team, then include their prior team logs.
@@ -381,7 +394,7 @@ def consistency(sport='NBA', teams=None, stat='pts', threshold=20, min_rate=50, 
 def threshold_ladder(sport,player_id,stat,n=10,season_type='regular'):
     if stat not in STATS.get(sport,{}):raise ValueError('Unsupported stat')
     if not 1<=n<=100:raise ValueError('Choose 1 to 100 games')
-    with connect() as db:
+    with research_connect() as db:
         rs=[dict(r) for r in db.execute('SELECT * FROM player_logs WHERE sport=? AND player_id=? AND season_type=? ORDER BY game_date DESC', (sport,player_id,season_type))]
     vals=[stat_value(r,stat) for r in rs if stat_value(r,stat) is not None and (sport!='NBA' or (r['minutes'] or 0)>0)][:n]
     if not vals:return []
@@ -391,7 +404,7 @@ def threshold_ladder(sport,player_id,stat,n=10,season_type='regular'):
 
 def nba_matchup(home,away,last=10,season_type='regular',before=None,date_from=None,date_to=None,season_types=None):
     if before:datetime.date.fromisoformat(before)
-    with connect() as db:
+    with research_connect() as db:
         def team(abbr):
             kinds=season_types or [season_type]
             sql="SELECT * FROM team_logs WHERE sport='NBA' AND team=? AND season_type IN ("+','.join('?' for _ in kinds)+')';args=[abbr,*kinds]
@@ -412,7 +425,7 @@ def defense_vs_position(team,last=10,season_type='regular',before=None,date_from
     Unclassified player logs are excluded, and partial classification is noted.
     """
     if before:datetime.date.fromisoformat(before)
-    with connect() as db:
+    with research_connect() as db:
         cutoff=' AND game_date<?' if before else ''
         cutoff+=(' AND game_date>=?' if date_from else '')+(' AND game_date<?' if date_to else '')
         kinds=season_types or [season_type];kind_sql='season_type IN ('+','.join('?' for _ in kinds)+')'

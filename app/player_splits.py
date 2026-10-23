@@ -29,7 +29,7 @@ def add_rest_days(sport,rows):
     start=(dt.date.fromisoformat(min(r['game_date'] for r in rows))-dt.timedelta(days=60)).isoformat()
     end=max(r['game_date'] for r in rows);calendar={}
     zone=db.get_settings().get('timezone','America/Chicago')
-    with db.connect() as c:
+    with db.research_connect() as c:
         for g in c.execute("SELECT home_abbr,away_abbr,starts_at FROM games WHERE sport=? AND status='final' AND starts_at>=? AND starts_at<?",(sport,start,end+'T23:59:59')):
             date=providers.iso_day(g['starts_at'],zone)
             for team in (g['home_abbr'],g['away_abbr']):calendar.setdefault(team,set()).add(date)

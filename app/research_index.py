@@ -37,7 +37,7 @@ def logs(sport,w,team='',player_id=''):
     args=[sport,w['start'],w['end'],*kinds]
     if team:where+=' AND p.team=?';args.append(team)
     if player_id:where+=' AND p.player_id=?';args.append(player_id)
-    with db.connect() as c:
+    with db.research_connect() as c:
         # Some ESPN summaries omit positions. Reuse only a position recorded on
         # or before this game, never current catalogue metadata from the future.
         resolved="""COALESCE(NULLIF(TRIM(p.position),''),(SELECT prior.position FROM player_logs prior
@@ -47,6 +47,8 @@ def logs(sport,w,team='',player_id=''):
         for r in rows:
             r['position_from_prior_log']=not bool(str(r.get('position') or '').strip()) and bool(r['resolved_position'])
             r['position']=r.pop('resolved_position')
+    from . import position_index
+    position_index.resolve(sport,rows)
     names=catalog(sport)
     return [r for r in rows if db.normalize_team(sport,r['team']) in names and db.normalize_team(sport,r['opponent']) in names]
 
@@ -72,7 +74,7 @@ def defense(sport,position,stat,season=None,season_type='regular',research_windo
     if position not in POSITIONS[sport]:raise ValueError('Choose a supported player position.')
     if stat not in db.STATS[sport]:raise ValueError('Choose a stat for this sport.')
     names=catalog(sport);games={};zone=db.get_settings().get('timezone','America/Chicago')
-    with db.connect() as c:
+    with db.research_connect() as c:
         query="SELECT * FROM games WHERE sport=? AND status='final' AND season_type IN ("+','.join('?' for _ in w['game_types'])+') AND starts_at>=? AND starts_at<?'
         upper=(dt.date.fromisoformat(w['end'])+dt.timedelta(days=1)).isoformat()
         for item in c.execute(query,[sport,*w['game_types'],w['start'],upper]):
@@ -118,11 +120,21 @@ def defense(sport,position,stat,season=None,season_type='regular',research_windo
         r['rank']=rank;previous=r['average']
     return {'sport':sport,'position':position,'stat':stat,'label':db.STATS[sport][stat],
             'window':w,'rows':result,'ranked_teams':sum(r['rank'] is not None for r in result),
-            'note':'Most allowed per usable game, from saved opponent player box scores. Coverage is observed records, not a guarantee of a complete box score. Games with missing stats or unresolved positions are excluded from averages, not counted as zero. Totals include reported values even in partial games. If a source omits a position, the last saved position on or before that game is used. NBA G includes G/PG/SG; F includes F/SF/PF. Hybrid roster labels may appear in more than one position view. No precise position is inferred from G/F labels. Historical context, not a betting forecast.'}
+            'note':'Most allowed per usable game, from saved opponent player box scores. Coverage is observed records, not a guarantee of a complete box score. Games with missing stats or unresolved positions are excluded from averages, not counted as zero. Totals include reported values even in partial games. If a source omits a position, the last saved position on or before that game is used. NBA G includes G/PG/SG; F includes F/SF/PF. Hybrid roster labels may appear in more than one position view. Current-season positions can be classified using separately sourced ESPN roster/depth-chart labels, with the observation date retained. Earlier-season logs are not reclassified. No precise position is guessed from G/F labels. Roster classification is not a tracked defensive assignment or betting forecast.'}
 
 
-def defense_table(sport,position,stat,season=None,season_type='regular'):
-    w=window(sport,season,season_type);observed=logs(sport,w)
+def defense_window(sport,season=None,season_type='regular',period='season'):
+    w=window(sport,season,season_type)
+    if period in ('days5','days14'):
+        days=int(period[4:]);end=min(dt.date.fromisoformat(w['end']),stat_logs.search_today()+dt.timedelta(days=1))
+        w['start']=max(w['start'],(end-dt.timedelta(days=days)).isoformat());w['label']+=' · Last '+str(days)+' days'
+    elif period=='games28':w.update(last_explicit=True,last=28);w['label']+=' · Last 28 games per team'
+    elif period!='season':raise ValueError('Choose this season, last 5 days, last 14 days or last 28 games.')
+    return w
+
+
+def defense_table(sport,position,stat,season=None,season_type='regular',period='season'):
+    w=defense_window(sport,season,season_type,period);observed=logs(sport,w)
     keys=list(db.STATS[sport])
     if sport=='NFL':keys=[k for k in keys if k not in ('pass_yds','pass_td') or position.upper()=='QB']
     if stat not in keys:stat=keys[0]
@@ -162,7 +174,7 @@ def search(sport,q,season=None,season_type='regular',entity='',entity_id=''):
         for code,name in names.items():
             if (entity=='team' and entity_id==code) or (not entity_id and (exact==code or needle in db.player_name_key(name))):candidates.append({'kind':'team','id':code,'name':name})
     if entity!='team':
-        with db.connect() as c:
+        with db.research_connect() as c:
             if entity_id:people=c.execute('SELECT * FROM player_search WHERE sport=? AND player_id=?',(sport,entity_id)).fetchall()
             else:people=c.execute('SELECT * FROM player_search WHERE sport=? AND name_key LIKE ? ORDER BY name_key LIMIT 30',(sport,'%'+needle+'%')).fetchall()
         candidates.extend({'kind':'player','id':r['player_id'],'name':r['player'],'position':r['position'],'team':r['team']} for r in people)
@@ -179,9 +191,10 @@ def search(sport,q,season=None,season_type='regular',entity='',entity_id=''):
     players.sort(key=lambda p:(-((p['stats'].get('pts' if sport=='NBA' else 'rec_yds') or {}).get('total') or 0),p['name']))
     if chosen['kind']=='player':
         position=rows[0]['position'] if rows else chosen.get('position','');chosen={**chosen,'position':position}
-        cols=[{'key':k,'label':label} for k,label in stat_logs.BOX_COLUMNS[sport] if not(sport=='NFL' and k in ('pass_yds','pass_td') and not stat_logs.is_quarterback(position))]
+        from . import game_research
+        cols=[{'key':k,'label':label} for k,label in game_research.columns(sport,position)]
         return {**base,'status':'ok','entity':chosen,'columns':cols,'summary':summary(rows,sport),'rows':rows[:100],'games':len(rows),'note':'Saved completed games in the selected season and game type. Unreported values remain blank; each average uses only reported games.'}
-    with db.connect() as c:
+    with db.research_connect() as c:
         upper=(dt.date.fromisoformat(w['end'])+dt.timedelta(days=1)).isoformat()
         all_games=[dict(r) for r in c.execute('SELECT * FROM games WHERE sport=? AND (home_abbr=? OR away_abbr=?) AND season_type=? AND starts_at>=? AND starts_at<? ORDER BY starts_at DESC',(sport,chosen['id'],chosen['id'],season_type,w['start'],upper))]
         zone=db.get_settings().get('timezone','America/Chicago')

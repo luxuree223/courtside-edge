@@ -14,7 +14,7 @@ def local_today():
 
 
 def saved(sport):
-    with db.connect() as c:row=c.execute('SELECT * FROM retained_leader_slates WHERE sport=?',(sport,)).fetchone()
+    with db.research_connect() as c:row=c.execute('SELECT * FROM retained_leader_slates WHERE sport=?',(sport,)).fetchone()
     return {**dict(row),'payload':json.loads(row['payload'])} if row else None
 
 
@@ -27,12 +27,12 @@ def capture_day(sport,date,games=None):
     if chosen>local_today():return False
     zone=db.get_settings().get('timezone','America/Chicago')
     if games is None:
-        with db.connect() as c:games=[dict(r) for r in c.execute('SELECT * FROM games WHERE sport=?',(sport,))]
+        with db.research_connect() as c:games=[dict(r) for r in c.execute('SELECT * FROM games WHERE sport=?',(sport,))]
     games=[dict(g) for g in games if g['sport']==sport and providers.iso_day(g['starts_at'],zone)==date]
     if not games or any(g['status']!='final' for g in games):return False
     ids={str(g['id']) for g in games}
     stamp=live.now().isoformat()
-    with db.connect() as c:
+    with db.research_connect() as c:
         old=c.execute('SELECT game_date FROM retained_leader_slates WHERE sport=?',(sport,)).fetchone()
         if old and old['game_date']>date:return False
         query='SELECT * FROM player_logs WHERE sport=? AND game_id IN ('+','.join('?' for _ in ids)+') ORDER BY game_id,player_id'
@@ -50,7 +50,7 @@ def bootstrap(sport):
     existing=saved(sport)
     if existing:return existing
     zone=db.get_settings().get('timezone','America/Chicago');today=local_today().isoformat()
-    with db.connect() as c:
+    with db.research_connect() as c:
         games=[dict(r) for r in c.execute('SELECT * FROM games WHERE sport=? ORDER BY starts_at DESC',(sport,))]
         ids={r[0] for r in c.execute('SELECT DISTINCT game_id FROM player_logs WHERE sport=?',(sport,))}
     groups={}

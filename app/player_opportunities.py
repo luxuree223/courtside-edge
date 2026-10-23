@@ -91,7 +91,7 @@ def opportunities(game_id,n=10,season=None,season_type='regular',date_from=None,
     game=covers.game('NFL',game_id)
     season=season or rankings.config()['defaults']['NFL']
     rankings.validate('NFL',season,season_type)
-    with db.connect() as connection:
+    with db.research_connect() as connection:
         sql="SELECT * FROM player_logs WHERE sport='NFL'";args=[]
         if date_from:sql+=' AND game_date>=?';args.append(date_from)
         if date_to:sql+=' AND game_date<?';args.append(date_to)

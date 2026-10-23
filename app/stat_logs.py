@@ -138,7 +138,7 @@ def search(query, sport='auto', last=None, stat='', opponent='', season_type='re
     filters=player_splits.conditions(query,venue,rest)
     parsed=parse_search(filters['query'],sport,last,stat,opponent,season_type,season_scope)
     if parsed['season_scope']=='current' and last is None and not re.search(r'\blast\s+\d+',query,re.I):parsed['last']=100
-    with db.connect() as c:
+    with db.research_connect() as c:
         q='SELECT sport,player_id,player,position,team,game_date FROM player_search WHERE 1=1'
         args=[]
         if parsed['sport']!='auto':q+=' AND sport=?';args.append(parsed['sport'])
@@ -183,17 +183,18 @@ def search(query, sport='auto', last=None, stat='', opponent='', season_type='re
 def _fill_positions(rows,sport,date):
     missing={r['player_id'] for r in rows if not r.get('position')}
     if missing:
-        with db.connect() as c:
+        with db.research_connect() as c:
             sql="SELECT player_id,position FROM player_logs WHERE sport=? AND game_date<=? AND position!='' AND player_id IN ("+','.join('?' for _ in missing)+") ORDER BY game_date DESC,game_id DESC"
             positions={}
             for r in c.execute(sql,[sport,date,*missing]):positions.setdefault(r['player_id'],r['position'])
         for row in rows:
             if not row.get('position'):row['position']=positions.get(row['player_id'],'')
-    return rows
+    from . import position_index
+    return position_index.resolve(sport,rows)
 
 
 def _saved_box(game):
-    with db.connect() as c:rows=[dict(r) for r in c.execute('SELECT * FROM player_logs WHERE sport=? AND game_id=? ORDER BY team,player',(game['sport'],game['id']))]
+    with db.research_connect() as c:rows=[dict(r) for r in c.execute('SELECT * FROM player_logs WHERE sport=? AND game_id=? ORDER BY team,player',(game['sport'],game['id']))]
     return _fill_positions([_public(r,game['sport']) for r in rows],game['sport'],providers.iso_day(game['starts_at'],db.get_settings().get('timezone','America/Chicago')))
 
 
@@ -274,7 +275,7 @@ def historical_leaders(sport, window, stat, as_of, season_type='regular',include
     if window=='last_week':
         end=today-dt.timedelta(days=today.weekday()+1)
         start=end-dt.timedelta(days=6)
-    with db.connect() as c:
+    with db.research_connect() as c:
         where="p.sport=? AND p.season_type=? AND p.game_date<=? AND p.game_date>=? AND (g.id IS NULL OR g.status='final')"
         args=[sport,season_type,as_of,scope['start']]
         if sport=='NBA':where+=' AND p.minutes>0'

@@ -27,7 +27,7 @@ def import_nfl(raw,schedule_raw,players_raw,season,source_url):
     player_ids={r['gsis_id']:r['espn_id'] for r in csv_rows(players_raw) if r.get('gsis_id') and r.get('espn_id')}
     # Validate and normalize all player rows before writing the schedule.
     result=providers.ingest_csv(raw,'NFL',source='nflverse',source_url=source_url,schedule=schedule,player_ids=player_ids)
-    with db.connect() as connection:
+    with db.research_connect() as connection:
         for row in schedule.values():
             date=row['gameday']
             datetime.date.fromisoformat(date)

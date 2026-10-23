@@ -11,7 +11,7 @@ async def lookup(sport,team,force=False):
     team=db.normalize_team(sport,team)
     if team not in research_index.catalog(sport):raise ValueError('Choose a league team.')
     async with _locks.setdefault((sport,team),asyncio.Lock()):
-        with db.connect() as c:row=c.execute('SELECT payload FROM next_team_schedule WHERE sport=? AND team=?',(sport,team)).fetchone()
+        with db.research_connect() as c:row=c.execute('SELECT payload FROM next_team_schedule WHERE sport=? AND team=?',(sport,team)).fetchone()
         old=json.loads(row[0]) if row else None
         ttl=30 if old and (old.get('game') or {}).get('status')=='live' else 1800
         if old and not force and live.age(old['fetched_at'])<ttl:
@@ -45,7 +45,7 @@ async def lookup(sport,team,force=False):
                     if candidates:
                         selected=min(candidates,key=lambda g:dt.datetime.fromisoformat(g['starts_at'].replace('Z','+00:00')));break
             result={'sport':sport,'team':team,'game':selected,'fetched_at':live.now().isoformat(),'source_url':url,'stale':False}
-            with db.connect() as c:
+            with db.research_connect() as c:
                 if selected:db.save_game(c,selected)
                 c.execute('INSERT INTO next_team_schedule VALUES (?,?,?) ON CONFLICT(sport,team) DO UPDATE SET payload=excluded.payload',(sport,team,json.dumps(result)))
             return result

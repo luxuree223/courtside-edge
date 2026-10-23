@@ -16,7 +16,7 @@ def validate_url(url,sport):
     return 'https://www.covers.com'+parsed.path.rstrip('/').removesuffix('/odds')
 
 def game(sport,game_id):
-    with db.connect() as connection:
+    with db.research_connect() as connection:
         row=connection.execute('SELECT * FROM games WHERE sport=? AND id=?',(sport,game_id)).fetchone()
     if not row:raise ValueError('Choose a saved game first.')
     return dict(row)

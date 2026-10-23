@@ -172,14 +172,14 @@ async def refresh(sport, season, season_type):
             payload=empty_season(sport,season,season_type)
         if payload.get('sport')!=sport or payload.get('season')!=season or payload.get('season_type')!=season_type:
             raise ValueError('Source returned statistics for a different season or game type')
-        with db.connect() as connection:
+        with db.research_connect() as connection:
             connection.execute('INSERT INTO team_rankings_cache VALUES (?,?,?,?) ON CONFLICT(sport,season,season_type) DO UPDATE SET payload=excluded.payload', (*key,json.dumps(payload)))
         return payload
 
 
 def cached(sport,season,season_type):
     sport = validate(sport,season,season_type)
-    with db.connect() as connection:
+    with db.research_connect() as connection:
         row = connection.execute('SELECT payload FROM team_rankings_cache WHERE sport=? AND season=? AND season_type=?',(sport,season,season_type)).fetchone()
     if not row:return None
     payload=json.loads(row['payload'])
@@ -217,7 +217,7 @@ def config():
     defaults = dict(current)
     # NBA begins with the actual current season, even before its first recorded game.
     # Keep the existing football preference separate from the NBA season selector.
-    with db.connect() as connection:
+    with db.research_connect() as connection:
         for sport in ('NFL',):
             dates = [r[0] for r in connection.execute("SELECT DISTINCT game_date FROM player_logs WHERE sport=? AND season_type='regular'",(sport,))]
             years = [int(d[:4])+(sport=='NBA' and int(d[5:7])>=8) if sport=='NBA' else int(d[:4])-(int(d[5:7])<8) for d in dates if len(d)==10]

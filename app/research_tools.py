@@ -62,7 +62,7 @@ def detect_sport(question,fallback):
     if re.search(r'\b(rebounds?|assists?|three.pointers?|PRA)\b',question,re.I):return 'NBA'
     found=[s for s in ('NBA','NFL') if ai_research.mentioned_teams(s,question,db.games_list(s,limit=3000))]
     if len(found)==1:return found[0]
-    with db.connect() as c:rows=c.execute('SELECT DISTINCT sport,player FROM player_logs').fetchall()
+    with db.research_connect() as c:rows=c.execute('SELECT DISTINCT sport,player FROM player_logs').fetchall()
     query=' '+ai_research.normalize(question)+' '
     sports={r['sport'] for r in rows if ' '+ai_research.normalize(r['player'])+' ' in query}
     return next(iter(sports)) if len(sports)==1 else fallback
@@ -223,7 +223,7 @@ class Session:
         window=self.window(sport);last=window['last']
         game=covers.game(sport,game_id) if game_id else None
         before=providers.iso_day(game['starts_at'],db.get_settings().get('timezone','America/Chicago')) if game else dt.datetime.now(ZoneInfo(db.get_settings().get('timezone','America/Chicago'))).date().isoformat()
-        with db.connect() as c:rows=[dict(r) for r in c.execute('SELECT * FROM player_logs WHERE sport=? AND game_date<? ORDER BY game_date DESC,game_id DESC',(sport,before))]
+        with db.research_connect() as c:rows=[dict(r) for r in c.execute('SELECT * FROM player_logs WHERE sport=? AND game_date<? ORDER BY game_date DESC,game_id DESC',(sport,before))]
         names={r['player_id']:r['player'] for r in reversed(rows)};needle=ai_research.normalize(player)
         ids=[i for i,n in names.items() if ai_research.normalize(n)==needle]
         if not ids:ids=[i for i,n in names.items() if needle and (' '+needle+' ') in (' '+ai_research.normalize(n)+' ')]

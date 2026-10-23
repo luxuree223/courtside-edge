@@ -219,7 +219,7 @@ async def fetch_json(client,url):
             if attempt==2:raise
             await asyncio.sleep(2**attempt)
 
-async def sync_dates(sport,start,end,include_scheduled=True):
+async def sync_dates(sport,start,end,include_scheduled=True,skip_saved=False,progress=None):
     if sport not in SPORT_PATH:raise ValueError('Unsupported sport')
     a=datetime.date.fromisoformat(start);b=datetime.date.fromisoformat(end)
     if b<a or (b-a).days>31:raise ValueError('Date range must be 1–32 days')
@@ -233,7 +233,7 @@ async def sync_dates(sport,start,end,include_scheduled=True):
                 games=parse_scoreboard(payload,sport)
                 timezone=store.get_settings().get('timezone','America/Chicago')
                 for game in games:game['game_date']=iso_day(game['starts_at'],timezone)
-                with store.connect() as db:
+                with store.research_connect() as db:
                     for g in games: store.save_game(db,g)
                 from . import markets
                 for line in scoreboard_betting_lines(payload,sport):
@@ -241,13 +241,17 @@ async def sync_dates(sport,start,end,include_scheduled=True):
                     except ValueError: pass
                 for g in games:
                     if g['status']!='final':continue
+                    if skip_saved and day<datetime.date.today()-datetime.timedelta(days=2):
+                        with store.research_connect() as saved:
+                            exists=saved.execute('SELECT 1 FROM player_logs WHERE sport=? AND game_id=? LIMIT 1',(sport,g['id'])).fetchone()
+                        if exists:continue
                     # An empty or partial game summary must not overwrite existing logs
                     try:
                         summary=await fetch_json(client,f'{BASE}/{SPORT_PATH[sport]}/summary?event={g["id"]}')
                         logs=nba_player_logs(summary,g) if sport=='NBA' else nfl_player_logs(summary,g)
                         teams=nba_team_logs(summary,g) if sport=='NBA' else []
                         if logs:
-                            with store.connect() as db:
+                            with store.research_connect() as db:
                                 store.save_logs(db,logs)
                                 if teams:store.save_team_logs(db,teams)
                             total_logs+=len(logs)
@@ -261,8 +265,9 @@ async def sync_dates(sport,start,end,include_scheduled=True):
                     leader_slates.capture_day(sport,day.isoformat(),games)
             except Exception as ex:
                 errors.append(f'{day}: {str(ex)[:140]}')
+            if progress:progress(day.isoformat())
             await asyncio.sleep(.12)
-    with store.connect() as db:
+    with store.research_connect() as db:
         db.execute('INSERT INTO sync_runs(sport,date_from,date_to,result,games,players,errors) VALUES (?,?,?,?,?,?,?)',
           (sport,start,end, 'error' if errors and total_logs==0 else 'partial' if errors else 'success',total_games,total_logs,'\n'.join(errors[:30])))
     return {'sport':sport,'games':total_games,'player_logs':total_logs,'errors':errors[:30],'from':start,'to':end}
@@ -346,7 +351,7 @@ def ingest_csv(raw,sport,season_type='regular',source='CSV import',source_url=''
                     'home_score':score if home else other,'away_score':other if home else score,
                     'status':'final','season_type':row_season}
     if not out:raise ValueError(f'No valid player rows found. {skipped} skipped. Check required columns and dates.')
-    with store.connect() as db:
+    with store.research_connect() as db:
         store.save_logs(db,out)
         for game in games.values():store.save_game(db,game)
     return {'imported':len(out),'skipped':skipped,'sport':sport,'games':len(games),'source':source,'source_url':source_url}

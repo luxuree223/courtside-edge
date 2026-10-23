@@ -32,7 +32,7 @@ def name_key(value):
 
 def game_players(game):
     cutoff=providers.iso_day(game['starts_at'],db.get_settings().get('timezone','America/Chicago'))
-    with db.connect() as c:
+    with db.research_connect() as c:
         rows=c.execute('SELECT player_id,player,team,position,game_date FROM player_logs WHERE sport=? AND game_date<? ORDER BY game_date DESC,game_id DESC',(game['sport'],cutoff)).fetchall()
     latest={}
     for row in rows:
@@ -87,12 +87,13 @@ def history_window(game,include_previous=False):
 
 
 def listed(sport,game_id,include_previous=False):
+    from . import odds_sources
     game=covers.game(sport,game_id);players=game_players(game)
     with db.connect() as c:rows=[dict(r) for r in c.execute('SELECT * FROM player_prop_quotes WHERE sport=? AND game_id=? ORDER BY player,stat,line,book,side',(sport,game_id))]
     quotes=[public_quote(row,players) for row in rows]
     before=providers.iso_day(game['starts_at'],db.get_settings().get('timezone','America/Chicago'))
     for quote,counts in zip(quotes,recent_counts(game,quotes,before,include_previous)):quote['recent']=counts
-    return {'quotes':quotes,'players':players,'feed_configured':bool(markets.get_key()),'history_before':before,'history_season_type':game['season_type'],
+    return {'quotes':quotes,'players':players,'feed_configured':bool(odds_sources.key(odds_sources.selected())),'history_before':before,'history_season_type':game['season_type'],
             'history_window':history_window(game,include_previous),'include_previous':include_previous,
             'books':list(BOOKS.values()),'note':'Player matches use names and their latest saved team before game day. This is not a verified active roster.'}
 
@@ -102,7 +103,7 @@ def recent_counts(game,quotes,before,include_previous=False):
     ids={q['player_id'] for q in quotes if q.get('player_id')}
     groups={pid:[] for pid in ids}
     if ids:
-        with db.connect() as c:
+        with db.research_connect() as c:
             start=history_window(game,include_previous)['start']
             rows=c.execute("SELECT p.* FROM player_logs p LEFT JOIN games g ON g.sport=p.sport AND g.id=p.game_id WHERE p.sport=? AND p.season_type=? AND p.game_date<? AND p.game_date>=? AND (g.id IS NULL OR g.status='final') AND p.player_id IN ("+','.join('?' for _ in ids)+') ORDER BY p.game_date DESC,p.game_id DESC',(game['sport'],game['season_type'],before,start,*ids))
             for r in rows:
@@ -155,8 +156,10 @@ async def refresh(sport,game_id,stat='',include_previous=False):
     if sport not in MARKETS:raise ValueError('Choose NBA or NFL.')
     stats=[stat] if stat else list(MARKETS[sport])
     if any(s not in MARKETS[sport] for s in stats):raise ValueError('Choose a supported prop category.')
+    from . import odds_sources
+    if odds_sources.selected()=='sportsgameodds':return await odds_sources.refresh(game,stats,include_previous)
     key=markets.get_key()
-    if not key:raise ValueError('Connect your odds API key in Find Value for automatic player props. Prop coverage depends on your plan. You can enter a sportsbook line below now.')
+    if not key:raise ValueError('Connect your odds API key in Settings → Odds sources for automatic player props. Prop coverage depends on your plan. You can enter a sportsbook line below now.')
     base=markets.ODDS_HOST+'/v4/sports/'+markets.LEAGUES[sport]
     try:
         async with httpx.AsyncClient(timeout=25) as client:
@@ -198,7 +201,7 @@ def history(quote_id,n=10,season_type='regular',player_id='',date_from=None,date
     cutoff=providers.iso_day(game['starts_at'],db.get_settings().get('timezone','America/Chicago'))
     if date_from is None:date_from=history_window(game,include_previous)['start']
     if not matched:return {'quote':quote,'unmatched':True,'players':players,'message':'No unique saved player matched this name. Choose the correct saved player to check history.'}
-    with db.connect() as c:
+    with db.research_connect() as c:
         kinds=season_types or [season_type]
         sql='SELECT * FROM player_logs WHERE sport=? AND player_id=? AND season_type IN ('+','.join('?' for _ in kinds)+') AND game_date<?'
         args=[quote['sport'],matched['player_id'],*kinds,cutoff]

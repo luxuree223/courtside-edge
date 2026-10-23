@@ -51,7 +51,7 @@ def prop_opportunities(sport,stat='',game_id='',include_previous=False):
             bybook=grouped.setdefault(key,{})
             if q['book'] not in bybook or q['observed_at']>bybook[q['book']]['observed_at']:bybook[q['book']]=q
         players={p['player_id']:p for p in data['players']}
-        with db.connect() as c:
+        with db.research_connect() as c:
             ids=[p for p in players]
             history=[dict(r) for r in c.execute("SELECT p.* FROM player_logs p LEFT JOIN games g ON g.sport=p.sport AND g.id=p.game_id WHERE p.sport=? AND p.season_type=? AND p.game_date>=? AND p.game_date<? AND (g.id IS NULL OR g.status='final') AND p.player_id IN ("+','.join('?' for _ in ids)+') ORDER BY p.game_date DESC,p.game_id DESC',(sport,game['season_type'],data['history_window']['start'],data['history_before'],*ids))] if ids else []
         byplayer={}

@@ -17,7 +17,7 @@ def age(stamp):
     except (ValueError,TypeError,AttributeError):return float('inf')
 
 def saved_board(sport,date):
-    with db.connect() as c:row=c.execute('SELECT payload FROM live_scoreboards WHERE sport=? AND game_date=?',(sport,date)).fetchone()
+    with db.research_connect() as c:row=c.execute('SELECT payload FROM live_scoreboards WHERE sport=? AND game_date=?',(sport,date)).fetchone()
     return json.loads(row[0]) if row else None
 
 async def scoreboard(sport,date,force=False):
@@ -37,7 +37,7 @@ async def scoreboard(sport,date,force=False):
                 game.update(score_fetched_at=stamp,score_source_url=url)
                 if game['id'] in references:game['espn_reference']=references[game['id']]
             result={'games':rows,'source_url':url,'fetched_at':stamp,'stale':False}
-            with db.connect() as c:
+            with db.research_connect() as c:
                 for game in rows:db.save_game(c,game)
                 c.execute('INSERT INTO live_scoreboards VALUES (?,?,?) ON CONFLICT(sport,game_date) DO UPDATE SET payload=excluded.payload',(sport,date,json.dumps(result)))
             return result

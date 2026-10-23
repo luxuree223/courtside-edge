@@ -78,7 +78,7 @@ def point_text(p):
 def game_context(sport,home,away,date,commence_time='',games=None):
     from . import providers
     if games is None:
-        with db.connect() as c:games=[dict(r) for r in c.execute('SELECT * FROM games WHERE sport=?',(sport,))]
+        with db.research_connect() as c:games=[dict(r) for r in c.execute('SELECT * FROM games WHERE sport=?',(sport,))]
     zone=db.get_settings().get('timezone','America/Chicago')
     found=[g for g in games if norm(g['home'])==norm(home) and norm(g['away'])==norm(away) and date in (g['starts_at'][:10],providers.iso_day(g['starts_at'],zone))]
     if commence_time:
@@ -181,7 +181,7 @@ def compare(sport='NBA', limit=100, books=None, include_finished=False):
         preferred={norm(book) for book in books}
         quotes=[q for q in quotes if norm(q['book']) in preferred]
     end=today+datetime.timedelta(days=3 if sport=='NBA' else 0)
-    with db.connect() as c:games=[dict(r) for r in c.execute('SELECT * FROM games WHERE sport=?',(sport,))]
+    with db.research_connect() as c:games=[dict(r) for r in c.execute('SELECT * FROM games WHERE sport=?',(sport,))]
     prepared=[]
     for q in quotes:
         context=game_context(sport,q['home'],q['away'],q['game_date'],q.get('commence_time',''),games)
@@ -239,7 +239,7 @@ def save_game_line(sport,game_id,home_spread=None,total_line=None,source='manual
     total=float(total_line) if total_line not in ('',None) else None
     if spread is not None and not -100<spread<100:raise ValueError('Check the spread amount')
     if total is not None and not 0<total<500:raise ValueError('Check the over/under amount')
-    with db.connect() as conn:
+    with db.research_connect() as conn:
         if not conn.execute('SELECT 1 FROM games WHERE sport=? AND id=?',(sport,game_id)).fetchone():raise ValueError('Choose a saved game')
         if source!='manual':
             existing=conn.execute('SELECT source FROM game_betting_lines WHERE sport=? AND game_id=?',(sport,game_id)).fetchone()
@@ -252,7 +252,7 @@ def save_game_line(sport,game_id,home_spread=None,total_line=None,source='manual
 def game_trends(sport='NFL',team='',last=10,venue='all',date_from=None,date_to=None,season_types=None):
     sport=sport.upper();last=int(last);team=team.upper()
     if sport not in LEAGUES or not 1<=last<=100:raise ValueError('Choose NBA/NFL and 1–100 games')
-    with db.connect() as conn:
+    with db.research_connect() as conn:
         sql='''SELECT g.*,l.home_spread,l.total_line,l.source AS line_source,
                  tl.possessions AS saved_possessions FROM games g
                  LEFT JOIN game_betting_lines l ON l.game_id=g.id AND l.sport=g.sport
@@ -298,7 +298,7 @@ def game_trends(sport='NFL',team='',last=10,venue='all',date_from=None,date_to=N
             'totals_with_lines':overs+unders+total_push,'details':details}
 
 def saved_team_names(sport='NFL'):
-    with db.connect() as conn:
+    with db.research_connect() as conn:
         rs=conn.execute('''SELECT home_abbr AS t FROM games WHERE sport=? UNION SELECT away_abbr AS t FROM games WHERE sport=? ORDER BY t''',(sport,sport)).fetchall()
     return [r[0] for r in rs if r[0]]
 

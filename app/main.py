@@ -66,6 +66,7 @@ async def _run_collection(sport,start,end,sports=None):
                     except Exception as ex:
                         _collection_status['errors'].append(f'{current_sport} {a}–{b}: {str(ex)[:150]}')
                     _collection_status['completed_days']+=(b-a).days+1
+        if 'NBA' in (sports or [sport]):_collection_status['pace_issues']=await pace.sync()
         _collection_status['message']='Finished getting games' if not _collection_status['errors'] else 'Finished, but some games could not be downloaded'
     except Exception as ex:
         _collection_status['message']='Download stopped because of an error'
@@ -448,6 +449,8 @@ async def _login_collection(plans):
                 _collection_status['message']='Verifying '+sport+' player positions against ESPN rosters…'
                 result=await position_index.refresh(sport)
                 _collection_status['errors'].extend(result['issues'][:10])
+        _collection_status['message']='Updating NBA.com and Hollinger pace stats…'
+        _collection_status['pace_issues']=await pace.sync()
         counts=db.data_counts()
         _collection_status['failed']=bool(_collection_status['errors']) and not any(counts[s]['player_logs'] for s in ('NBA','NFL'))
         _collection_status['outcome']='failed' if _collection_status['failed'] else 'partial' if _collection_status['errors'] else 'complete'
@@ -636,8 +639,8 @@ def position_rankings(sport:str='NFL',position:str='TE',stat:str='rec_td',season
     except ValueError as ex:raise HTTPException(400,str(ex))
 
 @app.get('/api/rankings/pace')
-async def pace_rankings(season:int|None=None,season_type:str='regular',last:int|None=Query(None,ge=1,le=100),refresh:bool=False):
-    try:return await pace.rankings(season,season_type,last,refresh)
+async def pace_rankings(season:int|None=None,season_type:str='regular',last:int|None=Query(None,ge=1,le=100),refresh:bool=False,source:str='nba'):
+    try:return await pace.rankings(season,season_type,last,refresh,source)
     except ValueError as ex:raise HTTPException(400,str(ex))
 
 @app.get('/api/rankings/positions/full')

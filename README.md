@@ -1,3 +1,17 @@
+# Courtside Edge 0.18.0
+
+The public homepage refreshes each sport’s slate and moves to tomorrow only after that sport’s games finish. Signing in checks both current seasons for missing ESPN game logs and verifies roster positions before opening the app. The first sync can take several minutes on a cold free host; source errors are shown with retry and an explicit option to open available records.
+
+Public sports records are shared across hosted accounts. Bets, units, bankroll, API keys, quotes and saved AI research stay private. Server research storage remains temporary on Render Free, while Firebase retains personal trackers. Sign-out prepares a private JSON backup and shows a mobile-friendly save button after signing out.
+
+Defense vs Position now has its own sidebar page with Quick Compare/Full Table, alphabetical and stat sorting, and selected season/last 5 days/last 14 days/last 28 games per team windows. ESPN roster/depth-chart positions are indexed separately with source URLs and observation times. Current-season G/F/missing labels can be classified using this metadata; original historical rows are retained. Positions describe roster/depth-chart classifications rather than tracked defensive assignments. Some players have several listed positions and can appear in multiple views. Unresolved positions and missing stat coverage remain visible.
+
+Player research has season/last-5/last-10 averages, position-specific NFL cards with quarterbacks first, five recent-game boxes for both sports, and complete-game-log links. Game and team stats precede the player cards. Team Trends is marked Coming Soon.
+
+Settings → Odds sources accepts The Odds API or SportsGameOdds keys and selects the provider for player-prop refreshes. Provider keys are not included in this package or JSON backups and must be re-entered if the temporary server cache is lost. Refreshing uses the selected provider’s allowance. Exact bookmaker quotes are saved; consensus/fair odds are not treated as actual sportsbook offers. Stats remain from ESPN.
+
+Search the Stats Index supports team averages, minimum averages, named-player averages, top scorers, last-N games, home/road and rest filters. It uses saved data and bounded language patterns rather than pretending to be a general AI. General conversation still uses the optional configured AI connection. Default scope is this season’s regular games; an explicit last-N request can reach the preceding season only as needed unless “this season” is specified.
+
 # Courtside Edge
 
 NBA/NFL game research and a personal betting tracker, with mobile layouts.

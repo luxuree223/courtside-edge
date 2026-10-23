@@ -1,0 +1,30 @@
+# Free cloud deployment using the configured Courtside Edge Firebase web app.
+# These are public web-app identifiers, never administrator credentials.
+services:
+  - type: web
+    name: courtside-edge
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT --workers 1 --proxy-headers --forwarded-allow-ips="*"
+    healthCheckPath: /api/health
+    autoDeployTrigger: "off"
+    envVars:
+      - key: EDGE_FIREBASE_ENABLED
+        value: "1"
+      - key: EDGE_FIREBASE_PROJECT_ID
+        value: courtsideedge-betting
+      - key: EDGE_FIREBASE_API_KEY
+        value: AIzaSyBnvsFv8KZeyClScWdQKJhLSSi_chkLM2k
+      - key: EDGE_FIREBASE_APP_ID
+        value: "1:154490916273:web:6bdcc0776c841eb5160190"
+      - key: EDGE_DB_PATH
+        value: /tmp/courtside/edge.sqlite3
+      - key: EDGE_REQUIRE_AUTH
+        value: "1"
+      - key: EDGE_SEED_BETS
+        value: "0"
+      - key: EDGE_AUTO_SYNC
+        value: "1"
+      - key: EDGE_SHARED_PROVIDER_KEYS
+        value: "0"

@@ -1,0 +1,23 @@
+__pycache__/
+.pytest_cache/
+*.py[cod]
+.venv/
+.runtime/
+.browsers/
+verification/
+.env
+.env.*
+# Personal data including placed bets and locally saved API keys:
+data/*
+!data/README.txt
+*.sqlite3
+*.sqlite3-wal
+*.sqlite3-shm
+*.dpapi
+*.zip
+node_modules/
+.firebase/
+firebase-debug.log
+firestore-debug.log
+*firebase-adminsdk*.json
+*service-account*.json

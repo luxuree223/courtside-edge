@@ -50,3 +50,7 @@
 .dvp-neutral{background:var(--panel);border-color:var(--muted)}
 .dvp-tough{background:rgba(225,118,118,.35);border-color:#e17676}
 @media(min-width:1101px){.finder-card .finder-search-row.with-criteria .field>label{display:flex;align-items:flex-end;min-height:2.8em}}
+.ranking-filters.defense-season-controls{display:flex;align-items:flex-end;gap:14px;flex-wrap:wrap}
+.defense-season-controls>.select-tabs{width:max-content;align-self:flex-end;flex:0 0 auto}
+.defense-season-controls>.field{width:210px;max-width:100%}
+@media(max-width:600px){.defense-season-controls>.field{width:100%}.defense-season-controls>.select-tabs{width:max-content}}

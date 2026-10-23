@@ -1,4 +1,6 @@
-# Courtside Edge 0.18.3
+# Courtside Edge 0.18.4
+
+Teams by Pace switches between NBA.com published PACE and ESPN Hollinger pace, with source-specific efficiency columns and a retrieval timestamp. NBA.com supports recent-game and playoff filters; Hollinger shows full regular seasons only. Sync Pace appears on both the pace page and selected-game team comparison, where pace is shown beside each team name. Main stats sync refreshes both sources. A saved response is marked stale when the source cannot refresh; no locally calculated pace is substituted. Defense tables default to NBA, cache position results and show passing columns first for quarterbacks. Player averages retain decimals and include field goals made beside attempts. New signings can resolve a single primary position from a uniquely matched public player profile; exhibition teams are excluded from roster refresh. Search opens blank.
 
 Player research now puts the game picker first, separates direct profile search from the Consistency finder, and starts stat/recent-game targets blank. NBA position filters offer PG, SG, SF, PF and C only. The mobile defense table uses a narrow rank/logo/abbreviation column to leave room for stats.
 
@@ -14,7 +16,7 @@ The public homepage refreshes each sport’s slate and moves to tomorrow only af
 
 Public sports records are shared across hosted accounts. Bets, units, bankroll, API keys, quotes and saved AI research stay private. Server research storage remains temporary on Render Free, while Firebase retains personal trackers. Sign-out prepares a private JSON backup and shows a mobile-friendly save button after signing out.
 
-Defense vs Position now has its own sidebar page with a full comparison table, alphabetical and stat sorting, and selected season/last 5 days/last 14 days/last 28 games per team windows. ESPN roster/depth-chart positions are indexed separately with source URLs and observation times. Current-season G/F/missing labels can be classified using this metadata; original historical rows are retained. Positions describe roster/depth-chart classifications rather than tracked defensive assignments. Some players have several listed positions and can appear in multiple views. Unresolved positions and missing stat coverage remain visible.
+Defense vs Position now has its own sidebar page with a full comparison table, alphabetical and stat sorting, and selected season/last 5 days/last 14 days/last 28 games per team windows. ESPN roster/depth-chart positions are indexed separately with source URLs and observation times. Current-season G/F/missing labels can be classified using this metadata; original historical rows are retained. Positions describe roster/depth-chart classifications rather than tracked defensive assignments. Each NBA player is counted at one sourced primary position; emergency and secondary roles are excluded. Unresolved positions and missing stat coverage remain visible.
 
 Player research has season/last-5/last-10 averages, position-specific NFL cards with quarterbacks first, five recent-game boxes for both sports, and complete-game-log links. Game and team stats precede the player cards. Team Trends is marked Coming Soon.
 

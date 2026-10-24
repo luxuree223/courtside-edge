@@ -71,7 +71,7 @@ async def lookup_profile(client,name):
 
 def secondary_roster_url(team):
     directory=json.loads((Path(__file__).resolve().parent.parent/'static/teams/primary-roster-sources.json').read_text(encoding='utf-8'))
-    return directory[team]
+    return directory['PHO' if team=='PHX' else team]
 
 
 def parse_secondary_roster(html,year):
@@ -124,12 +124,17 @@ def seed_snapshot(connection):
     path=Path(__file__).resolve().parent.parent/'static/teams'/f'primary-positions-{season()}.json'
     if not path.exists():return
     snapshot=json.loads(path.read_text(encoding='utf-8'));version=snapshot['observed_at']
-    marker='nba-primary-snapshot-'+str(snapshot['season'])
+    marker='nba-primary-snapshot-v2-'+str(snapshot['season'])
     prior=connection.execute('SELECT version FROM position_index_sources WHERE name=?',(marker,)).fetchone()
     if prior and prior[0]==version:return
+    # Old secondary-only additions outside the reviewed directory must be
+    # reverified from a single-position profile before entering the metrics.
+    connection.execute("DELETE FROM player_positions WHERE sport='NBA' AND source_url LIKE '%cbssports.com%'")
     for row in snapshot['players']:
         if row['position'] not in NBA_POSITIONS:continue
         values=('NBA',str(row['player_id']),row['team'],row['position'],row['source_url'],row.get('observed_at') or version)
-        connection.execute('INSERT OR IGNORE INTO player_positions VALUES (?,?,?,?,?,?)',values)
+        # Repair all teams' assignments overwritten by the old live-roster path.
+        # The season directory is the authoritative assignment, not the last feed fetched.
+        connection.execute('INSERT OR REPLACE INTO player_positions VALUES (?,?,?,?,?,?)',values)
         connection.execute("UPDATE player_search SET position=? WHERE sport='NBA' AND player_id=? AND team=?",(row['position'],str(row['player_id']),row['team']))
     connection.execute('INSERT OR REPLACE INTO position_index_sources VALUES (?,?)',(marker,version))

@@ -9,6 +9,9 @@ SCHEMA='''CREATE TABLE IF NOT EXISTS player_positions (
 
 def ensure(c,sport=None):
     c.execute(SCHEMA)
+    c.execute('''CREATE TABLE IF NOT EXISTS position_proposals (
+      sport TEXT,player_id TEXT,team TEXT,position TEXT,source_url TEXT,observed_at TEXT,
+      PRIMARY KEY(sport,player_id,team));''')
     from . import primary_positions
     if sport=='NBA':primary_positions.seed_snapshot(c)
 
@@ -69,13 +72,22 @@ async def refresh(sport,teams=None):
                             prior=cached.get(pid) or fallback.get(pid)
                             if prior and pid not in cached:
                                 rows.append((sport,pid,code,prior['position'],prior['source_url'],prior['observed_at']))
-                            if prior and prior['observed_at']>=cutoff:continue
                             pos=precise.get(primary_positions.name_key(p.get('displayName',''))) or precise.get(primary_positions.name_key(p.get('fullName','')))
                             source=primary_url
-                            if not pos and not prior:
+                            if prior:
+                                # Never change the research classification just because
+                                # a second roster feed describes a different role today.
+                                if pos and pos!=prior['position']:
+                                    with db.research_connect() as c:
+                                        c.execute('INSERT OR REPLACE INTO position_proposals VALUES (?,?,?,?,?,?)',(sport,pid,code,pos,source,stamp))
+                                continue
+                            if not prior:
                                 async with profile_limit:
                                     profile=await primary_positions.lookup_profile(client,p.get('displayName') or p.get('fullName',''))
-                                if profile:pos=profile['position'];source=profile['source_url']
+                                # A generic G/F, a depth-chart slot or an unsupported
+                                # secondary-feed label cannot establish a primary role.
+                                pos=profile['position'] if profile else None
+                                if profile:source=profile['source_url']
                             if not pos and not prior:issues.append(abbr+': primary position unverified for '+p.get('displayName',pid))
                         else:pos=(p.get('position') or {}).get('abbreviation','');source=base+'/roster'
                         if pid and pos:rows.append((sport,pid,db.normalize_team(sport,abbr),pos,source,stamp))
@@ -106,4 +118,26 @@ def resolve(sport,people):
         if p.get('game_date') and p['game_date']<start:continue
         if item and (sport=='NBA' or not p.get('position') or p['position'] in ('G','F')):
             p['position']=item['position'];p['position_source_url']=item['source_url'];p['position_observed_at']=item['observed_at']
+        elif sport=='NBA':
+            # Even an exact-looking box-score PG/SG label is not a verified primary
+            # assignment. Missing evidence must never flow into position averages.
+            raw=str(p.get('position') or '').upper()
+            p['position_family']='G' if raw in ('G','PG','SG') else 'F' if raw in ('F','SF','PF') else None
+            p['position']='';p['position_unverified']=True
     return people
+
+
+def directory(position=None):
+    """Auditable public assignments, including the source of each selected label."""
+    import json
+    from pathlib import Path
+    from . import primary_positions
+    path=Path(__file__).resolve().parents[1]/'static/teams'/f'primary-positions-{primary_positions.season()}.json'
+    snapshot=json.loads(path.read_text(encoding='utf-8')) if path.exists() else {'players':[]}
+    names={str(p['player_id']):p.get('name') for p in snapshot['players']}
+    with db.research_connect() as c:
+        ensure(c,'NBA')
+        rows=[dict(r) for r in c.execute("SELECT * FROM player_positions WHERE sport='NBA' AND position IN ('PG','SG','SF','PF','C') ORDER BY team,player_id")]
+        for r in c.execute("SELECT player_id,max(player) name FROM player_search WHERE sport='NBA' GROUP BY player_id"):
+            names[r['player_id']]=names.get(r['player_id']) or r['name']
+    return [{**r,'name':names.get(r['player_id']) or 'Player '+r['player_id']} for r in rows if not position or r['position']==position]

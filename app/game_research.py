@@ -52,7 +52,7 @@ async def overview(sport,game_id):
     # Positions can be absent in summary rows even when ESPN roster knows them.
     position_index.resolve(sport,list(players.values()))
     for person in players.values():
-        if not person.get('position'):
+        if sport!='NBA' and not person.get('position'):
             known=next((r.get('position') for r in logs if str(r['player_id'])==str(person['player_id']) and r.get('position')),None)
             if known:person['position']=known
     # Use latest saved team only when the source roster/box score is unavailable.
@@ -61,6 +61,7 @@ async def overview(sport,game_id):
     covered={r['team'] for r in players.values()}
     for pid,row in latest.items():
         if row['team'] in (game['home_abbr'],game['away_abbr']) and row['team'] not in covered:players.setdefault(pid,dict(row))
+    position_index.resolve(sport,list(players.values()))
     if any('roster' in s for s in issues) or not box['rows'] and game['status']!='scheduled':roster_note+=' Missing source teams use latest saved players; this may be incomplete.'
     grouped={}
     for row in logs:

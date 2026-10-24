@@ -9,7 +9,7 @@ from fastapi.responses import FileResponse, HTMLResponse, PlainTextResponse, JSO
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 from . import db,providers,markets,history,covers,covers_odds,rankings,ai,props,live,player_opportunities,ai_research,stat_logs,leader_slates,research_index,accounts,next_opponent,discovery,personal_backup,cloud_accounts
-from . import game_research, position_index, index_questions, odds_sources, pace
+from . import game_research, position_index, index_questions, odds_sources, pace, research_ready
 
 ROOT=Path(__file__).resolve().parent.parent
 _sync_lock=asyncio.Lock()
@@ -133,7 +133,7 @@ async def lifespan(app):
         try:await _collection_task
         except asyncio.CancelledError:pass
 
-app=FastAPI(title='Courtside Edge',version='0.18.4',lifespan=lifespan)
+app=FastAPI(title='Courtside Edge',version='0.18.5',lifespan=lifespan)
 app.mount('/static',StaticFiles(directory=str(ROOT/'static')),name='static')
 
 @app.middleware('http')
@@ -208,7 +208,7 @@ async def next_team_game(sport:str,team:str,refresh:bool=False):
 def index():return FileResponse(ROOT/'static'/'index.html',headers={'Cache-Control':'no-store'})
 
 @app.get('/api/health')
-def health(request:Request):return {'ok':True,'version':'0.18.4',**({'data':db.data_counts()} if not cloud_accounts.enabled() and (request.state.account or not accounts.configured()) else {})}
+def health(request:Request):return {'ok':True,'version':'0.18.5',**({'data':db.data_counts()} if not cloud_accounts.enabled() and (request.state.account or not accounts.configured()) else {})}
 
 @app.get('/api/cloud/config')
 def cloud_config():
@@ -454,16 +454,24 @@ async def _login_collection(plans):
         counts=db.data_counts()
         _collection_status['failed']=bool(_collection_status['errors']) and not any(counts[s]['player_logs'] for s in ('NBA','NFL'))
         _collection_status['outcome']='failed' if _collection_status['failed'] else 'partial' if _collection_status['errors'] else 'complete'
+        if not _collection_status['failed']:research_ready.finish()
         _collection_status['message']='Sync complete' if not _collection_status['errors'] else 'Sync finished with source gaps. Review the details before researching.'
     except Exception as ex:
         _collection_status['failed']=True;_collection_status['outcome']='failed'
         _collection_status['errors'].append(str(ex)[:180]);_collection_status['message']='Sync could not finish. Retry to complete the update.'
     finally:_collection_status['running']=False
 
+@app.get('/api/data/readiness')
+def research_readiness():
+    return {**research_ready.status(),'running':_collection_status['running']}
+
 @app.post('/api/data/login-sync')
-async def login_sync():
+async def login_sync(force:bool=False):
     global _collection_status,_collection_task
     if _collection_status['running']:return dict(_collection_status)
+    ready=research_ready.status()
+    if not force and ready['ready'] and not ready['needs_update']:
+        return {'running':False,'outcome':'complete','failed':False,'errors':[],'message':'Research is up to date','checked_at':ready['checked_at']}
     if _sync_lock.locked():raise HTTPException(409,'A scheduled stats update is finishing. Retry the sign-in sync shortly.')
     plans=[(sport,*current_season_dates(sport)) for sport in ('NBA','NFL')]
     _collection_status={'running':True,'mode':'login','sport':'NBA + NFL','completed_days':0,

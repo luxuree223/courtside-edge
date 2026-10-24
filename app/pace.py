@@ -1,7 +1,7 @@
 """Published NBA.com advanced team statistics. Never derive a substitute pace."""
 import asyncio, datetime as dt, json, math, time
 from pathlib import Path
-import httpx, re
+import httpx, re, hashlib
 from bs4 import BeautifulSoup
 from . import db, research_index
 
@@ -95,7 +95,13 @@ async def rankings(season=None,season_type='regular',last=None,refresh=False,sou
                 if payload.get('parameters',{}).get('Season')!=season_label:raise ValueError('NBA returned a different season.')
                 rows=parse(payload)
             else:rows=parse_hollinger(response.text,year)
-            result=dict(sport='NBA',window=w,last=last,rows=rows,ranked_teams=sum(r['pace'] is not None for r in rows),source=source_name,source_id=source,source_url=source_url,fetched_epoch=time.time(),updated_at=dt.datetime.now(dt.timezone.utc).isoformat(),stale=False)
+            result=dict(sport='NBA',window=w,last=last,rows=rows,ranked_teams=sum(r['pace'] is not None for r in rows),source=source_name,source_id=source,source_url=source_url,fetched_epoch=time.time(),updated_at=dt.datetime.now(dt.timezone.utc).isoformat(),stale=False,
+                import_method='Published NBA stats response' if source=='nba' else 'Published Hollinger website table',source_sha256=hashlib.sha256(response.content).hexdigest())
+            # Keep the exact public source response alongside its parsed table so
+            # every imported value can be checked against what the source supplied.
+            path.parent.mkdir(parents=True,exist_ok=True)
+            raw=path.with_suffix('.source.json' if source=='nba' else '.source.html')
+            raw.write_bytes(response.content)
             path.parent.mkdir(parents=True,exist_ok=True);temporary=path.with_suffix('.tmp');temporary.write_text(json.dumps(result),encoding='utf-8');temporary.replace(path)
             return result
         except (httpx.HTTPError,ValueError,KeyError):

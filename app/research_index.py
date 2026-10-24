@@ -9,7 +9,7 @@ import datetime as dt
 from pathlib import Path
 from . import db, stat_logs, providers
 
-POSITIONS = {'NFL':['QB','RB','FB','WR','TE'], 'NBA':['G','F','C','PG','SG','SF','PF']}
+POSITIONS = {'NFL':['QB','RB','FB','WR','TE'], 'NBA':['PG','SG','SF','PF','C']}
 ALIASES = {'TIGHT END':'TE','TIGHT ENDS':'TE','WIDE RECEIVER':'WR','WIDE RECEIVERS':'WR',
            'RUNNING BACK':'RB','RUNNING BACKS':'RB','QUARTERBACK':'QB','GUARD':'G',
            'FORWARD':'F','CENTER':'C','POINT GUARD':'PG','SHOOTING GUARD':'SG',
@@ -100,6 +100,11 @@ def defense(sport,position,stat,season=None,season_type='regular',research_windo
             covered+=1;game_total=0;uncertain=False
             for r in g['rows']:
                 match=position_match(r.get('position'),position,sport);value=db.stat_value(r,stat)
+                if sport=='NBA' and r.get('position_unverified'):
+                    family=r.get('position_family')
+                    # A guard can invalidate PG/SG coverage but cannot inflate a
+                    # forward/center total. The family is never a displayed assignment.
+                    match=False if family=='G' and position not in ('PG','SG') or family=='F' and position not in ('SF','PF') else None
                 if sport=='NBA' and r.get('minutes')==0 and not activity(r,sport):continue
                 sources.add(r.get('source') or 'Unspecified saved source')
                 if str(r.get('source_url','')).startswith('https://'):urls.add(r['source_url'])
@@ -122,7 +127,7 @@ def defense(sport,position,stat,season=None,season_type='regular',research_windo
         r['rank']=rank;previous=r['average']
     return {'sport':sport,'position':position,'stat':stat,'label':db.STATS[sport][stat],
             'window':w,'rows':result,'ranked_teams':sum(r['rank'] is not None for r in result),
-            'note':'Each game first combines the stats of opposing players at their published primary roster position. The combined game totals are divided by the number of games with usable records, not by the number of players. Each NBA player counts in one position only; emergency and secondary depth-chart roles are excluded. Primary positions come from season rosters at Basketball Reference and CBS Sports, with source URLs and observation dates retained. Games with missing stats or unresolved primary positions are excluded from averages rather than counted as zero. Earlier-season logs are not reclassified using current rosters. Listed positions do not measure minutes spent guarding a position.'}
+            'note':'Each game first combines the stats of opposing players at their published primary roster position. The combined game totals are divided by the number of games with usable records, not by the number of players. Each NBA player counts in one position only; emergency and secondary depth-chart roles are excluded. Primary positions come from the sourced season directory. Automatic feed changes are held as proposals and cannot replace an assignment. Generic G/F and unsupported box-score labels are excluded. Source URLs and observation dates are retained. Games with missing stats or unresolved primary positions are excluded from averages rather than counted as zero. Earlier-season logs are not reclassified using current rosters. Listed positions do not measure minutes spent guarding a position.'}
 
 
 def defense_window(sport,season=None,season_type='regular',period='season'):
@@ -146,13 +151,15 @@ def defense_table(sport,position,stat,season=None,season_type='regular',period='
     tables={key:defense(sport,position,key,research_window=w,_observations=observed) for key in keys}
     base=tables[stat]
     lookup={key:{r['team']:r for r in table['rows']} for key,table in tables.items()}
-    coverage=None
+    coverage=None;directory=[]
     from . import primary_positions
     if sport=='NBA' and (season is None or season==primary_positions.season()):
+        from . import position_index
+        directory=position_index.directory(position)
         with db.research_connect() as c:
             r=c.execute("SELECT count(DISTINCT player_id),count(DISTINCT team),max(observed_at) FROM player_positions WHERE sport='NBA' AND position IN ('PG','SG','SF','PF','C')").fetchone()
             coverage={'players':r[0],'teams':r[1],'observed_at':r[2]}
-    return {**base,'position_coverage':coverage,'columns':[{'key':key,'label':db.STATS[sport][key]} for key in keys],
+    return {**base,'position_coverage':coverage,'position_players':directory,'columns':[{'key':key,'label':db.STATS[sport][key]} for key in keys],
         'rows':[{**row,'stats':{key:{k:lookup[key][row['team']][k] for k in ('average','total','rank','usable_games','expected_games','partial','unclassified_rows')} for key in keys}} for row in base['rows']]}
 
 

@@ -383,3 +383,9 @@ input[type="range"] { min-height: 28px; }
 .stats-modes{flex-wrap:wrap;gap:3px}
 .leader-controls{display:grid;grid-template-columns:minmax(160px,330px) minmax(180px,1fr);gap:20px;align-items:end}
 @media(max-width:600px){.leader-controls{grid-template-columns:1fr}.stats-sport-switch{width:100%}.stats-sport-switch button{flex:1}.stats-modes button{flex:1;padding:10px}}
+
+/* Inspectable position averages retain the table's matchup colors. */
+.dvp-average{display:inline-block;background:transparent;border:0;border-bottom:1px dotted currentColor;padding:3px 0;color:var(--text);font:700 13px var(--font);cursor:pointer}
+.dvp-average:hover{color:var(--accent)}.dvp-average:focus-visible{outline:2px solid var(--accent);outline-offset:4px}
+.dvp-audit-modal{width:min(800px,100%)}.dvp-audit-game{border-top:1px solid var(--border);padding:14px 0}.dvp-audit-game h3{font-size:14px}.dvp-audit-game .table td{white-space:normal}.dvp-audit-game .table th{white-space:normal}
+@media(max-width:600px){.dvp-audit-modal{padding:16px}.dvp-audit-game .table td,.dvp-audit-game .table th{padding:9px 6px}.dvp-audit-game .row-between{gap:8px}}

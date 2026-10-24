@@ -1,0 +1,292 @@
+{
+  "sport": "NBA",
+  "window": {
+    "scope": "explicit",
+    "label": "2026\u201327",
+    "start": "2026-07-01",
+    "end": "2026-10-24",
+    "game_types": [
+      "regular"
+    ]
+  },
+  "last": null,
+  "rows": [
+    {
+      "team": "CHI",
+      "name": "Chicago Bulls",
+      "pace": 111.0,
+      "games": 1,
+      "offense": 82.1,
+      "defense": 122.7,
+      "rank": 1
+    },
+    {
+      "team": "TOR",
+      "name": "Toronto Raptors",
+      "pace": 111.0,
+      "games": 1,
+      "offense": 122.7,
+      "defense": 82.1,
+      "rank": 1
+    },
+    {
+      "team": "ATL",
+      "name": "Atlanta Hawks",
+      "pace": 110.0,
+      "games": 1,
+      "offense": 118.9,
+      "defense": 114.7,
+      "rank": 3
+    },
+    {
+      "team": "ORL",
+      "name": "Orlando Magic",
+      "pace": 110.0,
+      "games": 1,
+      "offense": 114.7,
+      "defense": 118.9,
+      "rank": 3
+    },
+    {
+      "team": "CLE",
+      "name": "Cleveland Cavaliers",
+      "pace": 109.5,
+      "games": 1,
+      "offense": 97.2,
+      "defense": 103.6,
+      "rank": 5
+    },
+    {
+      "team": "PHI",
+      "name": "Philadelphia 76ers",
+      "pace": 105.75,
+      "games": 2,
+      "offense": 103.8,
+      "defense": 97.6,
+      "rank": 6
+    },
+    {
+      "team": "MIA",
+      "name": "Miami Heat",
+      "pace": 105.5,
+      "games": 1,
+      "offense": 100.0,
+      "defense": 124.8,
+      "rank": 7
+    },
+    {
+      "team": "MIN",
+      "name": "Minnesota Timberwolves",
+      "pace": 105.5,
+      "games": 1,
+      "offense": 124.8,
+      "defense": 100.0,
+      "rank": 7
+    },
+    {
+      "team": "IND",
+      "name": "Indiana Pacers",
+      "pace": 105.0,
+      "games": 1,
+      "offense": 117.1,
+      "defense": 114.3,
+      "rank": 9
+    },
+    {
+      "team": "NO",
+      "name": "New Orleans Pelicans",
+      "pace": 105.0,
+      "games": 1,
+      "offense": 114.3,
+      "defense": 117.1,
+      "rank": 9
+    },
+    {
+      "team": "LAC",
+      "name": "LA Clippers",
+      "pace": 104.5,
+      "games": 1,
+      "offense": 116.3,
+      "defense": 91.4,
+      "rank": 11
+    },
+    {
+      "team": "SAC",
+      "name": "Sacramento Kings",
+      "pace": 104.5,
+      "games": 1,
+      "offense": 91.4,
+      "defense": 116.3,
+      "rank": 11
+    },
+    {
+      "team": "MEM",
+      "name": "Memphis Grizzlies",
+      "pace": 104.0,
+      "games": 1,
+      "offense": 118.3,
+      "defense": 99.0,
+      "rank": 13
+    },
+    {
+      "team": "UTAH",
+      "name": "Utah Jazz",
+      "pace": 104.0,
+      "games": 1,
+      "offense": 99.0,
+      "defense": 118.3,
+      "rank": 13
+    },
+    {
+      "team": "MIL",
+      "name": "Milwaukee Bucks",
+      "pace": 103.5,
+      "games": 1,
+      "offense": 112.6,
+      "defense": 123.1,
+      "rank": 15
+    },
+    {
+      "team": "WSH",
+      "name": "Washington Wizards",
+      "pace": 103.5,
+      "games": 1,
+      "offense": 123.1,
+      "defense": 112.6,
+      "rank": 15
+    },
+    {
+      "team": "GS",
+      "name": "Golden State Warriors",
+      "pace": 102.0,
+      "games": 1,
+      "offense": 102.9,
+      "defense": 124.5,
+      "rank": 17
+    },
+    {
+      "team": "LAL",
+      "name": "Los Angeles Lakers",
+      "pace": 102.0,
+      "games": 1,
+      "offense": 124.5,
+      "defense": 102.9,
+      "rank": 17
+    },
+    {
+      "team": "NY",
+      "name": "New York Knicks",
+      "pace": 102.0,
+      "games": 1,
+      "offense": 98.0,
+      "defense": 103.9,
+      "rank": 17
+    },
+    {
+      "team": "SA",
+      "name": "San Antonio Spurs",
+      "pace": 102.0,
+      "games": 1,
+      "offense": 102.0,
+      "defense": 113.7,
+      "rank": 17
+    },
+    {
+      "team": "BKN",
+      "name": "Brooklyn Nets",
+      "pace": 101.5,
+      "games": 1,
+      "offense": 102.0,
+      "defense": 107.8,
+      "rank": 21
+    },
+    {
+      "team": "CHA",
+      "name": "Charlotte Hornets",
+      "pace": 101.5,
+      "games": 1,
+      "offense": 107.8,
+      "defense": 102.0,
+      "rank": 21
+    },
+    {
+      "team": "BOS",
+      "name": "Boston Celtics",
+      "pace": 100.5,
+      "games": 1,
+      "offense": 113.0,
+      "defense": 119.8,
+      "rank": 23
+    },
+    {
+      "team": "DET",
+      "name": "Detroit Pistons",
+      "pace": 100.5,
+      "games": 1,
+      "offense": 119.8,
+      "defense": 113.0,
+      "rank": 23
+    },
+    {
+      "team": "DAL",
+      "name": "Dallas Mavericks",
+      "pace": 98.5,
+      "games": 1,
+      "offense": 111.1,
+      "defense": 130.6,
+      "rank": 25
+    },
+    {
+      "team": "HOU",
+      "name": "Houston Rockets",
+      "pace": 98.5,
+      "games": 1,
+      "offense": 130.6,
+      "defense": 111.1,
+      "rank": 25
+    },
+    {
+      "team": "OKC",
+      "name": "Oklahoma City Thunder",
+      "pace": 98.0,
+      "games": 2,
+      "offense": 108.2,
+      "defense": 95.9,
+      "rank": 27
+    },
+    {
+      "team": "PHX",
+      "name": "Phoenix Suns",
+      "pace": 97.0,
+      "games": 1,
+      "offense": 86.5,
+      "defense": 126.5,
+      "rank": 28
+    },
+    {
+      "team": "POR",
+      "name": "Portland Trail Blazers",
+      "pace": 97.0,
+      "games": 1,
+      "offense": 126.5,
+      "defense": 86.5,
+      "rank": 28
+    },
+    {
+      "team": "DEN",
+      "name": "Denver Nuggets",
+      "pace": 94.0,
+      "games": 1,
+      "offense": 89.4,
+      "defense": 102.1,
+      "rank": 30
+    }
+  ],
+  "ranked_teams": 30,
+  "source": "NBA.com",
+  "source_id": "nba",
+  "source_url": "https://www.nba.com/stats/teams/advanced?Season=2026-27",
+  "fetched_epoch": 1792795415.096729,
+  "updated_at": "2026-10-23T22:43:35.096729+00:00",
+  "stale": false
+}

@@ -1,7 +1,8 @@
 """Indexed, season-scoped entity search and observed defense against positions.
 
 These are descriptive saved box-score statistics, never projected probabilities.
-Positions are the source's roster labels, not tracking of on-court assignments.
+NBA starters use confirmed game-specific slots; bench players use sourced primary
+positions. Neither classification measures possession-by-possession assignments.
 """
 import json
 import re
@@ -35,8 +36,10 @@ def logs(sport,w,team='',player_id=''):
     kinds=w['game_types']
     where='p.sport=? AND p.game_date>=? AND p.game_date<? AND p.season_type IN ('+','.join('?' for _ in kinds)+") AND (g.id IS NULL OR g.status='final')"
     args=[sport,w['start'],w['end'],*kinds]
-    if team:where+=' AND p.team=?';args.append(team)
-    if player_id:where+=' AND p.player_id=?';args.append(player_id)
+    # NBA reconciliation checks the entire game's scoring roster before any
+    # player/team view is selected. A filtered fragment cannot certify a lineup.
+    if team and sport!='NBA':where+=' AND p.team=?';args.append(team)
+    if player_id and sport!='NBA':where+=' AND p.player_id=?';args.append(player_id)
     with db.research_connect() as c:
         # Some ESPN summaries omit positions. Reuse only a position recorded on
         # or before this game, never current catalogue metadata from the future.
@@ -49,8 +52,12 @@ def logs(sport,w,team='',player_id=''):
             r['position']=r.pop('resolved_position')
     from . import position_index
     position_index.resolve(sport,rows)
+    if sport=='NBA':
+        from . import starting_lineups
+        starting_lineups.resolve(rows)
     names=catalog(sport)
-    return [r for r in rows if db.normalize_team(sport,r['team']) in names and db.normalize_team(sport,r['opponent']) in names]
+    return [r for r in rows if db.normalize_team(sport,r['team']) in names and db.normalize_team(sport,r['opponent']) in names
+            and (not team or r['team']==team) and (not player_id or r['player_id']==player_id)]
 
 
 def activity(row,sport):
@@ -69,7 +76,35 @@ def position_match(value,position,sport):
     return False
 
 
-def defense(sport,position,stat,season=None,season_type='regular',research_window=None,_observations=None):
+def _game_allowance(rows,sport,position,stat):
+    detail={'total':0,'usable':False,'players':[],'issues':[],'missing_stat_rows':0,'unclassified_rows':0,'lineup_missing':False}
+    if not rows:
+        detail['issues']=['Final player box score is unavailable.'];return detail
+    if sport=='NBA' and not all(r.get('lineup_verified') for r in rows):
+        detail['lineup_missing']=True
+        detail['issues']=sorted({r.get('lineup_issue') or 'Confirmed starting positions are unavailable.' for r in rows if not r.get('lineup_verified')})
+        return detail
+    for r in rows:
+        if sport=='NBA' and r.get('minutes')==0 and not activity(r,sport):continue
+        match=position_match(r.get('position'),position,sport);value=db.stat_value(r,stat)
+        if sport=='NBA' and r.get('position_unverified'):
+            family=r.get('position_family')
+            match=False if family=='G' and position not in ('PG','SG') or family=='F' and position not in ('SF','PF') else None
+        if match is None and (value is None or value!=0):
+            detail['unclassified_rows']+=1
+            detail['issues'].append(r['player']+': primary bench position is unverified.' if sport=='NBA' else r['player']+': position is unverified.')
+        if match is True:
+            detail['players'].append({'id':r['player_id'],'name':r['player'],'team':r['team'],'position':r['position'],
+                'starter':r.get('is_starter'),'basis':r.get('position_basis') or 'Source roster position','value':value,
+                'source_url':r.get('source_url',''),'position_source_url':r.get('position_source_url','')})
+            if value is None:
+                detail['missing_stat_rows']+=1;detail['issues'].append(r['player']+': stat is not reported.')
+            else:detail['total']+=value
+    detail['usable']=not detail['issues']
+    return detail
+
+
+def defense(sport,position,stat,season=None,season_type='regular',research_window=None,_observations=None,_audit_team=''):
     w=research_window or window(sport,season,season_type)
     if sport not in POSITIONS:raise ValueError('Choose NBA or NFL.')
     position=ALIASES.get(position.upper().strip(),position.upper().strip())
@@ -90,31 +125,28 @@ def defense(sport,position,stat,season=None,season_type='regular',research_windo
         games.setdefault((code,r['game_id']),{'date':r['game_date'],'rows':[]})['rows'].append(r)
     by_team={code:[] for code in names}
     for (team,gid),g in games.items():by_team.setdefault(team,[]).append((gid,g))
-    result=[]
+    result=[];audit_games=[]
     for team,entries in by_team.items():
         entries.sort(key=lambda x:(x[1]['date'],x[0]),reverse=True)
         if w.get('last_explicit'):entries=entries[:w['last']]
-        total=complete_total=0;known=covered=unknown_stat=unknown_position=0;sources=set();urls=set()
+        total=complete_total=0;known=covered=unknown_stat=unknown_position=missing_lineups=0;sources=set();urls=set()
         for gid,g in entries:
-            if not g['rows']:continue
-            covered+=1;game_total=0;uncertain=False
+            detail=_game_allowance(g['rows'],sport,position,stat)
+            if _audit_team==team:
+                audit_games.append({'game_id':gid,'date':g['date'],'opponent':g['rows'][0]['team'] if g['rows'] else '',
+                    'source_url':f'{providers.BASE}/{providers.SPORT_PATH[sport]}/summary?event={gid}',
+                    'boxscore_url':f'https://www.espn.com/{sport.lower()}/boxscore/_/gameId/{gid}' if str(gid).isdigit() else '',
+                    'lineup_source_url':next((r.get('lineup_source_url') for r in g['rows'] if r.get('lineup_source_url')),''),**detail})
+            if g['rows']:covered+=1
+            unknown_position+=detail['unclassified_rows'];unknown_stat+=detail['missing_stat_rows']
+            missing_lineups+=int(detail['lineup_missing'])
             for r in g['rows']:
-                match=position_match(r.get('position'),position,sport);value=db.stat_value(r,stat)
-                if sport=='NBA' and r.get('position_unverified'):
-                    family=r.get('position_family')
-                    # A guard can invalidate PG/SG coverage but cannot inflate a
-                    # forward/center total. The family is never a displayed assignment.
-                    match=False if family=='G' and position not in ('PG','SG') or family=='F' and position not in ('SF','PF') else None
-                if sport=='NBA' and r.get('minutes')==0 and not activity(r,sport):continue
                 sources.add(r.get('source') or 'Unspecified saved source')
                 if str(r.get('source_url','')).startswith('https://'):urls.add(r['source_url'])
-                if match is None and (value is None or value!=0):unknown_position+=1;uncertain=True
-                if match is True:
-                    if value is None:unknown_stat+=1;uncertain=True
-                    else:game_total+=value
-            total+=game_total
-            if not uncertain:known+=1;complete_total+=game_total
+            total+=detail['total']
+            if detail['usable']:known+=1;complete_total+=detail['total']
         result.append({'team':team,'name':names.get(team,team),'total':round(total,3) if covered else None,
+                       'complete_total':round(complete_total,3) if known else None,'missing_lineup_games':missing_lineups,
                        'average':round(complete_total/known,3) if known else None,'usable_games':known,
                        'games_with_logs':covered,'expected_games':len(entries),'missing_stat_rows':unknown_stat,
                        'unclassified_rows':unknown_position,'partial':known<len(entries),
@@ -125,9 +157,14 @@ def defense(sport,position,stat,season=None,season_type='regular',research_windo
         if r['average'] is None:r['rank']=None;continue
         if r['average']!=previous:rank=i+1
         r['rank']=rank;previous=r['average']
-    return {'sport':sport,'position':position,'stat':stat,'label':db.STATS[sport][stat],
+    data={'sport':sport,'position':position,'stat':stat,'label':db.STATS[sport][stat],
             'window':w,'rows':result,'ranked_teams':sum(r['rank'] is not None for r in result),
-            'note':'Each game first combines the stats of opposing players at their published primary roster position. The combined game totals are divided by the number of games with usable records, not by the number of players. Each NBA player counts in one position only; emergency and secondary depth-chart roles are excluded. Primary positions come from the sourced season directory. Automatic feed changes are held as proposals and cannot replace an assignment. Generic G/F and unsupported box-score labels are excluded. Source URLs and observation dates are retained. Games with missing stats or unresolved primary positions are excluded from averages rather than counted as zero. Earlier-season logs are not reclassified using current rosters. Listed positions do not measure minutes spent guarding a position.'}
+            'note':'Opposing players are combined within each game, then those game totals are averaged over usable games. NBA starters use NBA.com’s confirmed starting slot for that specific game, matched to the final ESPN starters; bench players keep their sourced primary position. Each player counts in one position per game. Projected lineups, emergency depth-chart roles and generic G/F labels are never used to guess a slot. NBA scoring rosters must reconcile to the final team score. Missing lineups, unresolved relevant positions or missing stats exclude the game from that average, never count as zero. Tap an average for its players, totals, sources and denominator. This does not measure possession-by-possession matchups.'}
+    if _audit_team:
+        row=next(r for r in result if r['team']==_audit_team)
+        data.update(team=_audit_team,name=names[_audit_team],average=row['average'],numerator=row['complete_total'],denominator=row['usable_games'],expected_games=row['expected_games'],games=audit_games)
+        data.pop('rows',None)
+    return data
 
 
 def defense_window(sport,season=None,season_type='regular',period='season'):
@@ -155,12 +192,24 @@ def defense_table(sport,position,stat,season=None,season_type='regular',period='
     from . import primary_positions
     if sport=='NBA' and (season is None or season==primary_positions.season()):
         from . import position_index
-        directory=position_index.directory(position)
+        people={}
+        for r in observed:
+            if not r.get('lineup_verified') or r.get('position_unverified') or r.get('position')!=position or not activity(r,sport):continue
+            key=(r['team'],r['player_id']);p=people.setdefault(key,{'team':r['team'],'id':r['player_id'],'name':r['player'],'position':position,'source_url':r.get('position_source_url',''),'games':set(),'roles':set()})
+            p['games'].add(r['game_id']);p['roles'].add(r.get('position_basis',''))
+        directory=[{**p,'games':len(p['games']),'roles':sorted(p['roles'])} for p in people.values()]
+        directory.sort(key=lambda p:(p['team'],p['name']))
         with db.research_connect() as c:
             r=c.execute("SELECT count(DISTINCT player_id),count(DISTINCT team),max(observed_at) FROM player_positions WHERE sport='NBA' AND position IN ('PG','SG','SF','PF','C')").fetchone()
             coverage={'players':r[0],'teams':r[1],'observed_at':r[2]}
     return {**base,'position_coverage':coverage,'position_players':directory,'columns':[{'key':key,'label':db.STATS[sport][key]} for key in keys],
-        'rows':[{**row,'stats':{key:{k:lookup[key][row['team']][k] for k in ('average','total','rank','usable_games','expected_games','partial','unclassified_rows')} for key in keys}} for row in base['rows']]}
+        'rows':[{**row,'stats':{key:{k:lookup[key][row['team']][k] for k in ('average','total','rank','usable_games','expected_games','partial','unclassified_rows','missing_lineup_games')} for key in keys}} for row in base['rows']]}
+
+
+def defense_audit(sport,team,position,stat,season=None,season_type='regular',period='season'):
+    team=db.normalize_team(sport,team)
+    if team not in catalog(sport):raise ValueError('Choose a team in this league.')
+    return defense(sport,position,stat,research_window=defense_window(sport,season,season_type,period),_audit_team=team)
 
 
 def summary(rows,sport):

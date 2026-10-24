@@ -63,6 +63,7 @@ async def _run_collection(sport,start,end,sports=None):
                         _collection_status['games']+=result['games']
                         _collection_status['player_logs']+=result['player_logs']
                         _collection_status['errors'].extend(result.get('errors',[])[:10])
+                        _collection_status['errors'].extend(('Lineup check: '+x for x in result.get('lineup_issues',[])[:10]))
                     except Exception as ex:
                         _collection_status['errors'].append(f'{current_sport} {a}–{b}: {str(ex)[:150]}')
                     _collection_status['completed_days']+=(b-a).days+1
@@ -109,7 +110,7 @@ async def nightly_scheduler():
                         success=True
                         for sport in ['NBA','NFL']:
                             result=await providers.sync_dates(sport,(now.date()-datetime.timedelta(days=2)).isoformat(),now.date().isoformat())
-                            success=success and not result.get('errors')
+                            success=success and not result.get('errors') and not result.get('lineup_issues')
                             await position_index.refresh(sport)
                         if success:
                             with db.connect() as connection:
@@ -133,7 +134,7 @@ async def lifespan(app):
         try:await _collection_task
         except asyncio.CancelledError:pass
 
-app=FastAPI(title='Courtside Edge',version='0.18.5',lifespan=lifespan)
+app=FastAPI(title='Courtside Edge',version='0.18.6',lifespan=lifespan)
 app.mount('/static',StaticFiles(directory=str(ROOT/'static')),name='static')
 
 @app.middleware('http')
@@ -208,7 +209,7 @@ async def next_team_game(sport:str,team:str,refresh:bool=False):
 def index():return FileResponse(ROOT/'static'/'index.html',headers={'Cache-Control':'no-store'})
 
 @app.get('/api/health')
-def health(request:Request):return {'ok':True,'version':'0.18.5',**({'data':db.data_counts()} if not cloud_accounts.enabled() and (request.state.account or not accounts.configured()) else {})}
+def health(request:Request):return {'ok':True,'version':'0.18.6',**({'data':db.data_counts()} if not cloud_accounts.enabled() and (request.state.account or not accounts.configured()) else {})}
 
 @app.get('/api/cloud/config')
 def cloud_config():
@@ -446,6 +447,7 @@ async def _login_collection(plans):
                     result=await providers.sync_dates(sport,a.isoformat(),b.isoformat(),skip_saved=True,progress=progress)
                     _collection_status['games']+=result['games'];_collection_status['player_logs']+=result['player_logs']
                     _collection_status['errors'].extend(result.get('errors',[])[:10])
+                    _collection_status['errors'].extend(('Lineup check: '+x for x in result.get('lineup_issues',[])[:10]))
                 _collection_status['message']='Verifying '+sport+' player positions against ESPN rosters…'
                 result=await position_index.refresh(sport)
                 _collection_status['errors'].extend(result['issues'][:10])
@@ -654,6 +656,11 @@ async def pace_rankings(season:int|None=None,season_type:str='regular',last:int|
 @app.get('/api/rankings/positions/full')
 def position_full_table(sport:str='NFL',position:str='TE',stat:str='rec_td',season:int|None=None,season_type:str='regular',period:str='season'):
     try:return research_index.defense_table(sport,position,stat,season,season_type,period)
+    except ValueError as ex:raise HTTPException(400,str(ex))
+
+@app.get('/api/rankings/positions/audit')
+def position_average_audit(team:str,sport:str='NBA',position:str='PG',stat:str='pts',season:int|None=None,season_type:str='regular',period:str='season'):
+    try:return research_index.defense_audit(sport,team,position,stat,season,season_type,period)
     except ValueError as ex:raise HTTPException(400,str(ex))
 
 @app.get('/api/search/entities')

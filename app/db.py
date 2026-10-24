@@ -96,7 +96,7 @@ CREATE TABLE IF NOT EXISTS sync_runs (
 
 SEED_BETS = []
 
-SCHEMA_VERSION = 12
+SCHEMA_VERSION = 13
 
 def backup_database():
     """SQLite's backup API includes committed WAL records, unlike copying one file."""
@@ -130,6 +130,8 @@ def init_db(seed=True):
         db.executescript(leader_slates.SCHEMA)
         from . import position_index
         db.executescript(position_index.SCHEMA)
+        from . import starting_lineups
+        starting_lineups.ensure(db,seed=False)
         from . import accounts
         db.executescript(accounts.SCHEMA)
         db.execute('INSERT OR IGNORE INTO settings(key,value) VALUES (?,?)', ('starting_bankroll','0'))
@@ -423,33 +425,25 @@ def nba_matchup(home,away,last=10,season_type='regular',before=None,date_from=No
 
 
 def defense_vs_position(team,last=10,season_type='regular',before=None,date_from=None,date_to=None,season_types=None):
-    """Historical points/rebounds/assists allowed by a team to *opposing* NBA positions.
-    Sums contributions per position per opposing game, then averages over available games.
-    Unclassified player logs are excluded, and partial classification is noted.
-    """
-    if before:datetime.date.fromisoformat(before)
-    with research_connect() as db:
-        cutoff=' AND game_date<?' if before else ''
-        cutoff+=(' AND game_date>=?' if date_from else '')+(' AND game_date<?' if date_to else '')
-        kinds=season_types or [season_type];kind_sql='season_type IN ('+','.join('?' for _ in kinds)+')'
-        args=[team,*kinds]+([before] if before else [])+([date_from] if date_from else [])+([date_to] if date_to else [])+[last]
-        days=[r['game_id'] for r in db.execute("SELECT game_id FROM team_logs WHERE sport='NBA' AND team=? AND "+kind_sql+cutoff+" ORDER BY game_date DESC LIMIT ?",args)]
-        if not days:
-            days=[r['game_id'] for r in db.execute("SELECT DISTINCT game_id,game_date FROM player_logs WHERE sport='NBA' AND opponent=? AND "+kind_sql+cutoff+" ORDER BY game_date DESC LIMIT ?",args)]
-        if not days:return {'team':team,'games':0,'positions':[],'classified_games':0}
-        query="SELECT game_id, position, pts,reb,ast FROM player_logs WHERE sport='NBA' AND opponent=? AND "+kind_sql+" AND game_id IN ("+','.join('?'*len(days))+")"
-        rows=[dict(r) for r in db.execute(query,[team,*kinds,*days])]
-    grouped={};seen=set()
-    for r in rows:
-        pos=str(r['position'] or '').upper()
-        if pos not in ('PG','SG','SF','PF','C'):continue
-        seen.add(r['game_id'])
-        totals=grouped.setdefault(pos,{}).setdefault(r['game_id'],{'pts':0.,'reb':0.,'ast':0.})
-        for key in ('pts','reb','ast'):totals[key]+=r[key] or 0
-    result=[]
-    for pos,games in grouped.items():
-        # Only compute an average when at least one classified opponent of that position exists.
-        result.append({'position':pos,'games':len(games),
-                       **{key:round(statistics.mean(v[key] for v in games.values()),1) for key in ('pts','reb','ast')}})
-    result.sort(key=lambda x:['PG','SG','SF','PF','C'].index(x['position']))
-    return {'team':team,'games':len(days),'classified_games':len(seen),'positions':result}
+    """Compatibility endpoint, sharing the verified game-level position engine."""
+    from . import research_index
+    team=normalize_team('NBA',team)
+    w=research_index.window('NBA',season_type=season_type)
+    w.update(last_explicit=True,last=last)
+    if season_types:w['game_types']=season_types
+    if date_from:w['start']=max(w['start'],date_from)
+    for value in (before,date_to):
+        if value:
+            datetime.date.fromisoformat(value);w['end']=min(w['end'],value)
+    positions=[];classified=set();expected=0
+    for pos in ('PG','SG','SF','PF','C'):
+        audit=research_index.defense('NBA',pos,'pts',research_window=w,_audit_team=team)
+        expected=max(expected,audit['expected_games'])
+        classified.update(g['game_id'] for g in audit['games'] if g['usable'])
+        if audit['average'] is None:continue
+        values={'pts':audit['average']}
+        for stat in ('reb','ast'):
+            table=research_index.defense('NBA',pos,stat,research_window=w)
+            values[stat]=next(r['average'] for r in table['rows'] if r['team']==team)
+        positions.append({'position':pos,'games':audit['denominator'],**values})
+    return {'team':team,'games':expected,'classified_games':len(classified),'positions':positions}

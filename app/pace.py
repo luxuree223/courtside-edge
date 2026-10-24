@@ -1,5 +1,6 @@
 """Published NBA.com advanced team statistics. Never derive a substitute pace."""
 import asyncio, datetime as dt, json, math, time
+from pathlib import Path
 import httpx, re
 from bs4 import BeautifulSoup
 from . import db, research_index
@@ -75,13 +76,18 @@ async def rankings(season=None,season_type='regular',last=None,refresh=False,sou
     source_url=SOURCE+'?Season='+season_label if source=='nba' else f'https://www.espn.com/nba/hollinger/teamstats/_/year/{year}'
     path=db.DB_PATH.parent/'public-pace'/f'{key}.json'
     async with _locks.setdefault(key,asyncio.Lock()):
-        cached=None
+        cached=None;bundled=False
         try:cached=json.loads(path.read_text(encoding='utf-8'))
         except (OSError,ValueError):pass
-        if cached and not refresh and time.time()-cached['fetched_epoch']<3600:return cached
+        if not cached and source=='nba' and season_type=='regular' and not last:
+            try:
+                cached=json.loads((Path(__file__).resolve().parents[1]/'static'/'teams'/f'pace-nba-{year}-regular.json').read_text(encoding='utf-8'));bundled=True
+            except (OSError,ValueError):pass
+        if bundled and not refresh:return dict(cached,stale=True,warning='Showing the dated NBA.com snapshot. Use Sync Pace to check for newer published values.')
+        if cached and not bundled and not refresh and time.time()-cached['fetched_epoch']<3600:return cached
         params=dict(LastNGames=last or 0,LeagueID='00',MeasureType='Advanced',Month=0,OpponentTeamID=0,PaceAdjust='N',PerMode='PerGame',Period=0,PlusMinus='N',Rank='N',Season=season_label,SeasonType='Regular Season' if season_type=='regular' else 'Playoffs',TeamID=0)
         try:
-            async with httpx.AsyncClient(timeout=25,follow_redirects=True,headers={'User-Agent':'Mozilla/5.0','Referer':'https://www.nba.com/'}) as client:
+            async with httpx.AsyncClient(timeout=25,follow_redirects=True,headers={'User-Agent':'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36','Referer':'https://www.nba.com/','Accept':'application/json, text/plain, */*','Accept-Language':'en-US,en;q=0.9',**({'x-nba-stats-origin':'stats','x-nba-stats-token':'true'} if source=='nba' else {})}) as client:
                 response=await client.get(ENDPOINT,params=params) if source=='nba' else await client.get(source_url)
                 response.raise_for_status()
             if source=='nba':

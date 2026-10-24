@@ -4,7 +4,7 @@ function positionChoices(sport){return sport==='NFL'?['QB','RB','FB','WR','TE']:
 function positionKey(){return [rankSport,rankSeason,rankType,positionView.position,positionView.stat,'full',positionView.period].join(':')}
 function positionRows(){return [...(positionView.data?.rows||[])].sort((a,b)=>{const k=positionView.sort;if(k==='name')return a.name.localeCompare(b.name)*positionView.dir;if(a[k]===null)return b[k]===null?0:1;if(b[k]===null)return -1;return (a[k]-b[k])*positionView.dir||a.name.localeCompare(b.name)})}
 const positionCache=new Map(),positionPending=new Map();let positionGeneration=0;
-const positionCachePrefix='courtside-public-dvp-v0184:',positionFreshMs=15*60*1000;
+const positionCachePrefix='courtside-public-dvp-v0185:',positionFreshMs=15*60*1000;
 function positionParams(position=positionView.position){return {sport:rankSport,season:rankSeason,season_type:rankType,position,stat:rankSport==='NBA'?'pts':position==='QB'?'pass_yds':['RB','FB'].includes(position)?'rush_yds':'rec_yds',period:positionView.period}}
 function positionCacheKey(p){return [p.sport,p.season,p.season_type,p.position,p.stat,'full',p.period].join(':')}
 function savedPosition(key){let item=positionCache.get(key);if(!item){try{item=JSON.parse(localStorage.getItem(positionCachePrefix+key)||'null')}catch{}if(item?.data)positionCache.set(key,item)}return item}

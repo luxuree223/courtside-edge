@@ -33,4 +33,10 @@
 .snapshot-gallery figure{margin:0;min-width:0}.snapshot-gallery img{width:100%;height:280px;object-fit:cover;object-position:top;border:1px solid #526170;border-radius:8px}
 .snapshot-gallery figcaption{font-size:12px;line-height:1.6;margin-top:8px}.log-source{display:block;font-size:11px;margin:6px 0}
 button:focus-visible,a:focus-visible,summary:focus-visible{outline:2px solid #bcef93;outline-offset:3px}
+.finder-team-heading{display:flex;gap:10px;align-items:center;padding:18px 24px 8px;margin:0;border-top:1px solid var(--border)}
+.finder-team-heading .tag{margin-left:auto;font-size:10px}.finder-team-empty{padding:0 24px 18px}
+.selected-score strong.team-season-record{font-size:26px}
+.recent-game .research-stat-line{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px 8px}
+.recent-game .research-stat-line strong{font-size:20px}.recent-game .research-stat-line small{font-size:10px}
+#main .recent-five{grid-template-columns:repeat(auto-fit,minmax(min(100%,235px),1fr))}
 @media(max-width:600px){.covers-panel .head-actions{flex-wrap:wrap}.snapshot-gallery{grid-template-columns:1fr}.covers-panel{padding:16px}.schedule-date .field{width:100%}}

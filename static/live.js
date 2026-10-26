@@ -16,7 +16,8 @@ function gameOverviewPanel(){return state.selectedGame?`<section class="card pad
 function gameOverviewBody(){
  const game=state.selectedGame;if(!game)return '';
  const record=gameOverviews.get(state.sport+':'+game.id),data=record?.data,prices=data?.prices,quotes=prices?.quotes||[];
- const score=(side)=>game[side+'_score']===null||game[side+'_score']===undefined?'—':game[side+'_score'];
+ const score=(side)=>game.status==='scheduled'?esc(game[side+'_record']||'Record unavailable'):(game[side+'_score']===null||game[side+'_score']===undefined?'—':game[side+'_score']);
+ const recordLabel=(side)=>game.status==='scheduled'?'<small>Season record</small>':game[side+'_record']?`<small>${esc(game[side+'_record'])} · Season record</small>`:'';
  const phase=game.status==='live'?'LIVE':game.status==='final'?'FINAL':'UPCOMING';
  const scoreStamp=game.score_fetched_at||data?.score_fetched_at;
  const observed=prices?.observed_at;
@@ -26,7 +27,7 @@ function gameOverviewBody(){
  const format=q=>q.market==='totals'?`${esc(q.selection)} ${q.point} <strong>${odds(q.price)}</strong>`:`${esc(q.selection===game.home?game.home_abbr:q.selection===game.away?game.away_abbr:q.selection)} ${q.market==='spreads'?signedLine(q.point)+' ':''}<strong>${odds(q.price)}</strong>`;
  const cell=(book,market)=>{const rows=quotes.filter(q=>q.book===book&&q.market===market);return rows.length?rows.map(q=>`<div class="game-price-line">${format(q)}${q.provider_updated_at?`<small>Book updated ${localTime(q.provider_updated_at)}</small>`:''}</div>`).join(''):'<span class="muted">Unavailable</span>'};
  return `<div class="card-head"><div><div class="eyebrow">SELECTED GAME</div><h2>${esc(game.away)} at ${esc(game.home)}</h2></div><span class="tag ${game.status==='live'?'pending':game.status==='final'?'win':''}">${phase}</span></div>
- <div class="selected-score"><div>${teamLogo(state.sport,game.away_abbr)}<span>${esc(game.away_abbr)} · AWAY</span><strong>${score('away')}</strong></div><div class="selected-clock">${esc(gameStatusText(game))}<small>${day(gameDay(game))}</small></div><div>${teamLogo(state.sport,game.home_abbr)}<span>${esc(game.home_abbr)} · HOME</span><strong>${score('home')}</strong></div></div>
+ <div class="selected-score"><div>${teamLogo(state.sport,game.away_abbr)}<span>${esc(game.away_abbr)} · AWAY</span><strong class="${game.status==='scheduled'?'team-season-record':''}">${score('away')}</strong>${recordLabel('away')}</div><div class="selected-clock">${esc(gameStatusText(game))}<small>${day(gameDay(game))}</small></div><div>${teamLogo(state.sport,game.home_abbr)}<span>${esc(game.home_abbr)} · HOME</span><strong class="${game.status==='scheduled'?'team-season-record':''}">${score('home')}</strong>${recordLabel('home')}</div></div>
  <p class="field-help ${data?.score_stale?'yellow':''}">${data?.score_error?esc(data.score_error)+' ':''}Score updated ${localTime(scoreStamp)} · <a href="${esc(safeSource(game.score_source_url||data?.score_source_url))}" target="_blank" rel="noopener noreferrer">ESPN source ↗</a></p>
  ${gameTeamStatsPanel()}
  ${game.status==='final'?'<p class="note-box">Final score. Sportsbook prices for finished games are not shown here.</p>':`

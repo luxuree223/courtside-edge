@@ -96,7 +96,7 @@ CREATE TABLE IF NOT EXISTS sync_runs (
 
 SEED_BETS = []
 
-SCHEMA_VERSION = 13
+SCHEMA_VERSION = 14
 
 def backup_database():
     """SQLite's backup API includes committed WAL records, unlike copying one file."""
@@ -141,7 +141,8 @@ def init_db(seed=True):
             db.execute("ALTER TABLE player_logs ADD COLUMN position TEXT NOT NULL DEFAULT ''")
         for table,columns in {
             'team_logs':{'game_minutes':'REAL','source_url':"TEXT NOT NULL DEFAULT ''"},
-            'player_logs':{'source_url':"TEXT NOT NULL DEFAULT ''",'rush_td':'REAL','rec_td':'REAL','fgm':'REAL'},
+            'player_logs':{'source_url':"TEXT NOT NULL DEFAULT ''",'rush_td':'REAL','rec_td':'REAL','fgm':'REAL','fg3a':'REAL'},
+            'games':{'home_record':'TEXT','away_record':'TEXT'},
             'market_quotes':{'commence_time':"TEXT NOT NULL DEFAULT ''",'provider_updated_at':"TEXT NOT NULL DEFAULT ''",'observed_game_state':"TEXT NOT NULL DEFAULT 'unknown'",'batch_id':"TEXT NOT NULL DEFAULT ''"},
         }.items():
             present={r[1] for r in db.execute(f'PRAGMA table_info({table})')}
@@ -248,8 +249,8 @@ def bets_csv():
         w.writerow([b['placed_at'],b['sport'],b['market'],b['selection'],b['odds'],b['stake'],b['status'],b['payout'],profit,round(profit/unit,3),b['note'],b['sportsbook']])
     return output.getvalue()
 
-GAME_FIELDS=['id','sport','starts_at','home_id','home','home_abbr','away_id','away','away_abbr','home_score','away_score','status','season_type']
-LOG_FIELDS=['sport','game_id','player_id','player','team','opponent','position','game_date','is_home','season_type','minutes','pts','reb','ast','fg3m','stl','blk','fgm','fga','oreb','dreb','tov','rec','rec_yds','targets','rush_att','rush_yds','pass_yds','pass_td','rush_td','rec_td','source','source_url']
+GAME_FIELDS=['id','sport','starts_at','home_id','home','home_abbr','away_id','away','away_abbr','home_score','away_score','status','season_type','home_record','away_record']
+LOG_FIELDS=['sport','game_id','player_id','player','team','opponent','position','game_date','is_home','season_type','minutes','pts','reb','ast','fg3m','fg3a','stl','blk','fgm','fga','oreb','dreb','tov','rec','rec_yds','targets','rush_att','rush_yds','pass_yds','pass_td','rush_td','rec_td','source','source_url']
 TEAM_FIELDS=['sport','game_id','team','opponent','game_date','is_home','season_type','pts','opp_pts','fga','fta','oreb','tov','possessions','game_minutes','source_url']
 
 def normalize_team(sport,value):
@@ -266,6 +267,7 @@ def save_game(db,g):
         g=dict(g)
         for side in ('home','away'):
             if g.get(side)==g.get(side+'_abbr') and old[side]:g[side]=old[side]
+            if not g.get(side+'_record'):g[side+'_record']=old[side+'_record']
         if len(g.get('starts_at',''))==10 and len(old['starts_at'])>10:g['starts_at']=old['starts_at']
     db.execute('INSERT INTO games ('+','.join(GAME_FIELDS)+') VALUES ('+','.join('?' for _ in GAME_FIELDS)+') ON CONFLICT(id,sport) DO UPDATE SET '+','.join(f'{f}=excluded.{f}' for f in GAME_FIELDS if f not in ('id','sport'))+',updated_at=CURRENT_TIMESTAMP', [g.get(f) for f in GAME_FIELDS])
 

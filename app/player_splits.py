@@ -5,7 +5,7 @@ import re
 from . import db,providers
 
 def conditions(query,venue='all',rest='all'):
-    text=query;explicit_venue=venue!='all';explicit_rest=rest!='all'
+    text=re.sub(r'\bhome\s+(?:and|&)\s+(?:away|road)\b',' ',query,flags=re.I);explicit_venue=venue!='all';explicit_rest=rest!='all'
     if re.search(r'\b(?:on the road|road games?|away games?|on the road)\b',text,re.I):
         if not explicit_venue:venue='away'
         text=re.sub(r'\b(?:on the road|road games?|away games?)\b',' ',text,flags=re.I)

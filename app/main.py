@@ -134,7 +134,7 @@ async def lifespan(app):
         try:await _collection_task
         except asyncio.CancelledError:pass
 
-app=FastAPI(title='Courtside Edge',version='0.18.6',lifespan=lifespan)
+app=FastAPI(title='Courtside Edge',version='0.18.7',lifespan=lifespan)
 app.mount('/static',StaticFiles(directory=str(ROOT/'static')),name='static')
 
 @app.middleware('http')
@@ -209,7 +209,7 @@ async def next_team_game(sport:str,team:str,refresh:bool=False):
 def index():return FileResponse(ROOT/'static'/'index.html',headers={'Cache-Control':'no-store'})
 
 @app.get('/api/health')
-def health(request:Request):return {'ok':True,'version':'0.18.6',**({'data':db.data_counts()} if not cloud_accounts.enabled() and (request.state.account or not accounts.configured()) else {})}
+def health(request:Request):return {'ok':True,'version':'0.18.7',**({'data':db.data_counts()} if not cloud_accounts.enabled() and (request.state.account or not accounts.configured()) else {})}
 
 @app.get('/api/cloud/config')
 def cloud_config():
@@ -379,12 +379,21 @@ def covers_image(snapshot_id:str):
     return FileResponse(db.database_path().parent/'covers'/row['filename'],media_type='image/png')
 
 @app.get('/api/consistency')
-def consistency(sport:str='NBA',teams:str='',stat:str='pts',threshold:float=20,
+async def consistency(sport:str='NBA',teams:str='',stat:str='pts',threshold:float=20,
       min_rate:float=50,max_rate:float=100,last:int=10,venue:str='all',season_type:str='regular',min_minutes:float=0,
-      comparison:str='at_least',opponent:str='',before:str|None=None,season:int|None=None,player:str=Query(default='',max_length=150)):
+      comparison:str='at_least',opponent:str='',before:str|None=None,season:int|None=None,player:str=Query(default='',max_length=150),game_id:str=''):
     try:
-        return {'results':db.consistency(sport,teams.split(',') if teams else None,stat,threshold,min_rate,max_rate,last,venue,season_type,min_minutes,
-                    comparison=comparison,opponent=opponent,before=before,season=season,player=player),
+        roster_data=await game_research.overview(sport,game_id) if game_id else None
+        results=db.consistency(sport,None if roster_data else teams.split(',') if teams else None,stat,threshold,min_rate,max_rate,last,venue,season_type,min_minutes,
+                    comparison=comparison,opponent=opponent,before=before,season=season,player='' if roster_data else player,max_results=10000 if roster_data else 120)
+        if roster_data:
+            roster={p['player_id']:p for p in roster_data['players']}
+            # A current roster determines the group, including traded players;
+            # their chronological past games can still belong to previous teams.
+            results=[{**r,'team':roster[r['player_id']]['team'],'position':roster[r['player_id']]['position']} for r in results if r['player_id'] in roster]
+        else:position_index.resolve(sport,results)
+        return {'results':results,'roster_note':roster_data.get('roster_note','') if roster_data else '',
+                'issues':roster_data.get('issues',[]) if roster_data else [],
                 'filters':{'sport':sport,'teams':teams,'stat':stat,'threshold':threshold,'last':last,'min_rate':min_rate,'max_rate':max_rate,'comparison':comparison,'before':before,'season':season,'opponent':opponent,'player':player}}
     except ValueError as ex:raise HTTPException(400,str(ex))
 
@@ -801,8 +810,9 @@ async def refresh_game_overview(sport:str,game_id:str):
 
 
 @app.get('/api/stats/search')
-def search_stat_logs(q:str=Query(...,max_length=250),sport:str='auto',last:int|None=Query(None,ge=1,le=100),stat:str='',opponent:str='',season_type:str='regular',player_id:str='',season_scope:str='auto',venue:str='all',rest:str='all'):
-    try:return stat_logs.search(q,sport,last,stat,opponent,season_type,player_id,season_scope,venue,rest)
+async def search_stat_logs(q:str=Query(...,max_length=250),sport:str='auto',last:int|None=Query(None,ge=1,le=100),stat:str='',opponent:str='',season_type:str='regular',player_id:str='',season_scope:str='auto',venue:str='all',rest:str='all'):
+    from . import player_history
+    try:return await player_history.search(q,sport,last,stat,opponent,season_type,player_id,season_scope,venue,rest)
     except ValueError as ex:raise HTTPException(400,str(ex))
 
 @app.get('/api/game/boxscore')
@@ -827,8 +837,9 @@ async def daily_leaders(sport:str,date:str,stat:str,refresh:bool=False):
 
 
 @app.get('/api/stats/game')
-def logged_game(sport:str,game_id:str):
-    try:return covers.game(sport,game_id)
+async def logged_game(sport:str,game_id:str):
+    from . import player_history
+    try:return await player_history.resolve_game(sport,game_id)
     except ValueError as ex:raise HTTPException(400,str(ex))
 
 

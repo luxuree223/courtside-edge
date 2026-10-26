@@ -113,8 +113,12 @@ def reconcile(game,summary,logs,payload,source_hash='',error=''):
                     try:
                         observed=dt.datetime.fromisoformat(source_time.replace('Z','+00:00'))
                         if observed.tzinfo is None:observed=observed.replace(tzinfo=dt.timezone.utc)
-                        source_day=observed.astimezone(ZoneInfo('America/New_York')).date()
-                        if source_day!=dt.date.fromisoformat(date):raise ValueError()
+                        # This is the source's update time, which often follows a
+                        # late game's final buzzer after midnight. The dated feed,
+                        # matchup and five actual starter identities bind the game.
+                        start=dt.datetime.fromisoformat(game['starts_at'].replace('Z','+00:00'))
+                        if start.tzinfo is None:start=start.replace(tzinfo=dt.timezone.utc)
+                        if not -24*3600 <= (observed-start).total_seconds() <= 36*3600:raise ValueError()
                     except (TypeError,ValueError):raise ValueError('Lineup timestamp does not match the requested game date.')
                     assigned[pid]=p
                 if set(assigned)!=set(starters):raise ValueError('Starter identities do not match the final box score.')

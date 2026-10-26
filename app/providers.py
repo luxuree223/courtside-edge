@@ -57,10 +57,13 @@ def parse_scoreboard(payload,sport):
         def score(side):
             value=number(side.get('score'),None)
             return int(value) if started and value is not None else None
+        def record(side):
+            value=next((r.get('summary') for r in side.get('records',[]) if r.get('type')=='total' or r.get('name')=='overall'),None)
+            return value if value and re.fullmatch(r'\d+-\d+(?:-\d+)?',value) else None
         games.append({'id':str(evt.get('id')),'sport':sport,'starts_at':evt.get('date') or comp.get('date',''),
           'home_id':str(h.get('id','')),'home':h.get('displayName') or h.get('name',''),'home_abbr':h.get('abbreviation',''),
           'away_id':str(a.get('id','')),'away':a.get('displayName') or a.get('name',''),'away_abbr':a.get('abbreviation',''),
-          'home_score':score(home),'away_score':score(away),
+          'home_score':score(home),'away_score':score(away),'home_record':record(home),'away_record':record(away),
           'clock':status.get('displayClock'),'period':status.get('period'),
           'status_detail':state.get('shortDetail') or state.get('detail') or state.get('description',''),
           'status':'final' if completed else 'live' if state.get('state')=='in' else 'scheduled',
@@ -115,6 +118,7 @@ def nba_player_logs(payload,game):
                     'source':'ESPN','source_url':f'{BASE}/basketball/nba/summary?event={game["id"]}','minutes':number(stats.get('MIN'),None),
                     'pts':number(stats.get('PTS'),None),'reb':number(stats.get('REB'),None),
                     'ast':number(stats.get('AST'),None),'fg3m':number(str(stats.get('3PT','')).split('-')[0],None),
+                    'fg3a':number(str(stats.get('3PT','')).split('-')[-1],None),
                     'stl':number(stats.get('STL'),None),'blk':number(stats.get('BLK'),None),
                     'fgm':number(str(stats.get('FG','')).split('-')[0],None),
                     'fga':number(str(stats.get('FG','')).split('-')[-1],None),
@@ -263,6 +267,9 @@ async def sync_dates(sport,start,end,include_scheduled=True,skip_saved=False,pro
                             else:
                                 with store.research_connect() as saved:
                                     if saved.execute("SELECT 1 FROM player_logs WHERE sport='NBA' AND game_id=? AND fgm IS NULL LIMIT 1",(g['id'],)).fetchone():exists=None
+                        if exists and sport=='NBA':
+                            with store.research_connect() as saved:
+                                if saved.execute("SELECT 1 FROM player_logs WHERE sport='NBA' AND game_id=? AND minutes>0 AND (fgm IS NULL OR fg3a IS NULL) LIMIT 1",(g['id'],)).fetchone():exists=None
                         if exists:continue
                     # An empty or partial game summary must not overwrite existing logs
                     try:
@@ -303,6 +310,7 @@ NBA_MAP={'player_id':['player_id','athlete_id','espn_id'], 'player':['player','p
  'game_date':['game_date','date','game_date_utc','start_date'], 'minutes':['minutes','min'],
  'pts':['pts','points'],'reb':['reb','rebounds','total_rebounds'],'ast':['ast','assists'],
  'fg3m':['fg3m','three_point_field_goals_made','three_pointers_made'],
+ 'fg3a':['fg3a','three_point_field_goals_attempted','three_pointers_attempted'],
  'stl':['stl','steals'],'blk':['blk','blocks'],'fgm':['fgm','field_goals_made'],'fga':['fga','field_goals_attempted'],
  'oreb':['oreb','offensive_rebounds'],'dreb':['dreb','defensive_rebounds'],'tov':['tov','turnovers'],
  'is_home':['is_home','home','home_away']}

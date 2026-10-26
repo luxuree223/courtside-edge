@@ -1,4 +1,10 @@
-# Courtside Edge 0.18.6
+# Courtside Edge 0.18.7
+
+Browser and Android Back now follow research screens and restore selected games, filters, results and scroll. A selected-game consistency search uses the current source rosters, groups matches by team and opens full profiles from names. Matching players appear above props. Recent NBA cards show points, FGM/FGA, rebounds, assists, 3PM/3PA and minutes first. Upcoming games show sourced season records.
+
+NBA Player Game Logs downloads and caches individual ESPN season histories separately from full-team Defense vs Position records. Explicit last-N searches can reach older career seasons; team and player opponents are filtered before taking N games. Player-versus-player requires the same event, opposite teams and recorded minutes for both. All-Star teams, DNPs, unfinished games and unwanted game types are excluded. Ambiguous names require a choice. NFL history retains the existing saved current/previous-season search. Source failures remain visible.
+
+NBA lineup update timestamps may fall after midnight following a game. Dated feeds still require a matching matchup, five distinct confirmed starting slots, exact final starter identities and reconciled team scoring. The 0.18.7 independent audit checked 43 finals, 970 player-game records and all 1,500 table cells with no differences.
 
 Returning browser visits open existing research immediately and check stale research in the background. A first sync is needed only when the host has no usable current-season records. The primary-position directory is restored on upgrade across all NBA teams. Secondary roster feeds cannot silently overwrite assignments; new players need an explicit single-position profile. Generic G/F labels are never expanded into a specific position. NBA starters use the official dated confirmed starting slot for that game; bench players use a sourced primary position. Defense vs Position includes an expandable player/source directory. Pace refresh copies the published source table or NBA response, saves the exact source response and labels any failed refresh with its original data timestamp.
 

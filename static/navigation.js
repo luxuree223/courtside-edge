@@ -14,7 +14,7 @@ const researchNavigation=(()=>{
  function save(){if(!active)return;entries.set(active,context());persist();}
  function cancelRequests(){entityView.request++;logView.request++;logView.leaderRequest++;gameResearch.request++;gameResearch.playerRequest++;if(typeof finderRequest!=='undefined')finderRequest++;}
  function restore(value){
-  cancelRequests();Object.assign(state,copy(value.state));
+  cancelRequests();Object.assign(state,copy(value.state));state.finderLoading=false;
   for(const [target,saved] of [[entityView,value.entity],[logView,value.logs],[gameResearch,value.player]]){
    const counters=Object.fromEntries(Object.entries(target).filter(([k])=>/request$/i.test(k)));
    Object.assign(target,copy(saved),counters);

@@ -104,7 +104,7 @@ function consistencyPage(){
  ${field('Maximum hit rate (optional)',`<input class="input" id="f-max_rate" type="number" min="0" max="100" step="1" value="${f.max_rate}">`)}
  ${field('American odds for comparison (optional)',`<input class="input" id="f-price" type="number" placeholder="Example: -110" value="${f.price||''}">`)}
  </div>${nfl?`<label class="finder-line-option"><input type="checkbox" id="f-research-stats" ${f.include_research?'checked':''}> Show research stats (Targets)</label>`:''}<label class="finder-line-option"><input type="checkbox" id="f-over-line" ${over?'checked':''}> I’m entering an over line from my sportsbook.</label><p class="field-help">For example: over 2.5 receptions needs 3 or more receptions.</p><button class="btn btn-small" data-action="clear-filter">Reset filters</button></details>`:''}</section>
- <div id="player-results">${consistency?(state.results?renderResults():card('Matching players',empt('Ready to search','Choose your numbers above, then press Find Players.'))):''}</div>
+ <div id="player-results">${consistency?(state.finderLoading?card('Matching players','<p role="status">Finding players who match your settings…</p>'):state.results?renderResults():card('Matching players',empt('Ready to search','Choose your numbers above, then press Find Players.'))):''}</div>
  ${gamePropsPanel()}
  ${state.selectedGame?`<details class="card pad research-extras"><summary>Game notes, Covers odds & screenshots</summary><div id="selected-game-host">${snapshotContents()}</div>${state.matchupIntel?renderMatchupIntel():''}</details>`:`<div id="selected-game-host"></div>`}`;
 }
@@ -155,6 +155,7 @@ function settingsPage(){const s=state.settings||{};return pageHead('ACCOUNTING &
 function content(){if(state.page==='pace')return pacePage();if(state.page==='search')return researchSearchPage();if(state.page==='logs')return statsPage();if(state.page==='game-log-box')return loggedGamePage();if(state.page==='rankings')return rankingsPage();if(state.page==='value')return defensePositionPage();if(state.page==='trends')return trendPage();if(state.page==='ask')return askPage();if(state.page==='dashboard')return dashboard();if(state.page==='bets')return betsPage();if(state.page==='data')return dataPage();if(state.page==='settings')return settingsPage()+oddsSourcesPanel()+sharingPanel();if(state.page==='matchups')return matchups();return consistencyPage()}
 function render(){const labels={pace:['TEAMS','Teams by Pace'],search:['RESEARCH','Search'],logs:['RESEARCH','Stats & Game Logs'],'game-log-box':['GAMES','Box Score'],rankings:['TEAMS','Rankings'],dashboard:['HOME','Overview'],consistency:['PLAYERS','NBA Player Finder'],nfl:['PLAYERS','NFL Player Finder'],matchups:['GAMES','Pick a Game'],bets:['BETS','My Bets'],data:['SYSTEM','Update Game Results'],settings:['SYSTEM','Settings'],value:['RESEARCH','Defense vs Position'],trends:['RESEARCH','Team Trends'],ask:['RESEARCH','Ask Courtside']};$('#crumb').textContent=labels[state.page][0];$('#crumb-page').textContent=labels[state.page][1]; $$('.nav-item').forEach(e=>e.classList.toggle('active',e.dataset.page===state.page));keepRankingScroll(()=>{$('#main').innerHTML=content()});$('#today-label').textContent=new Date().toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric',year:'numeric'});$('#data-state').innerHTML='<span class="status-dot"></span> '+(state.data?.NBA.player_logs||0).toLocaleString()+' saved NBA player games';updateSyncButton();}
 function nav(page){
+ if(page!==state.page){finderRequest++;state.finderLoading=false;}
  if(['consistency','nfl'].includes(state.page))saveFinder();
  state.page=page;
  if(page==='pace')loadPace();
@@ -173,9 +174,19 @@ function nav(page){
  if(['matchups','nfl','consistency','value','rankings'].includes(page))refreshLiveScores();
  if(page==='logs')loadStatsLanding();
 }
+function invalidateFinderResults(){finderRequest++;state.finderLoading=false;state.results=null;const host=$('#player-results');if(host&&state.finderMode==='consistency')host.innerHTML=card('Matching players','<p class="muted">Settings changed. Press Find Players to see matching players.</p>');}
 function readFilters(){const val=id=>$('#f-'+id)?.value;if(!String(val('threshold')??'').trim())throw new Error('Enter how many of the selected stat the player should reach.');if(!String(val('last')??'').trim())throw new Error('Enter how many recent games to check (1–100).');let f={...state.filters,player:state.finderMode==='consistency'&&state.selectedGame?'':(val('player')||'').trim(),stat:val('stat')||state.filters.stat,threshold:Number(val('threshold')||0),last:Number(val('last')),venue:val('venue')||'all',season_type:val('season_type')||'regular',min_minutes:Number(val('min_minutes')||0),min_rate:Number(val('min_rate')||0),max_rate:Number(val('max_rate')??100),price:val('price')||'',comparison:$('#f-over-line')?.checked?'over':'at_least',opponent:(val('opponent')||'').toUpperCase().trim(),season:val('season')||'',before:val('before')||''};if(!Number.isInteger(f.last)||f.last<1||f.last>100)throw new Error('Choose a whole number from 1 to 100 past games.');if(!Number.isFinite(f.threshold)||f.threshold<0)throw new Error('Enter 0 or more for the number you want them to reach.');if(f.price && !(Number(f.price)>=100||Number(f.price)<=-100))throw new Error('For odds, enter +100 or higher, or -100 or lower.');if(!Number.isFinite(f.min_rate)||!Number.isFinite(f.max_rate)||f.min_rate<0||f.max_rate>100||f.min_rate>f.max_rate)throw new Error('Use percentages between 0 and 100. The minimum cannot be higher than the maximum.');state.filters=f;saveFinder();state.customTeams=$('#f-teams')?.selectedOptions?[...$('#f-teams').selectedOptions].map(o=>o.value).join(','):(val('teams')||'').toUpperCase().replace(/[^A-Z,]/g,'');state.matchup=state.selectedGame?state.selectedGame.home_abbr+','+state.selectedGame.away_abbr:state.customTeams;return f}
-async function search(scrollToResults=true){let f=readFilters();const request=++finderRequest,sport=state.sport,game=state.selectedGame?.id,page=state.page;const q=new URLSearchParams({sport:state.sport,player:f.player||'',teams:state.matchup,stat:f.stat,threshold:f.threshold,last:f.last,venue:f.venue,season_type:f.season_type,min_minutes:f.min_minutes,min_rate:f.min_rate,max_rate:f.max_rate,comparison:f.comparison||'at_least',opponent:f.opponent||''});if(state.selectedGame)q.set('game_id',state.selectedGame.id);if(f.season)q.set('season',f.season);if(f.before)q.set('before',f.before);let data=await req('/consistency?'+q);if(request!==finderRequest||sport!==state.sport||game!==state.selectedGame?.id||page!==state.page)return;state.results=data;state.expanded=null;state.matchupIntel=null;
- if(state.sport==='NBA' && state.matchup){const [home,away]=state.matchup.split(',');try{const [summary,homeDvp,awayDvp]=await Promise.all([req('/matchup?'+new URLSearchParams({home,away,last:f.last,season_type:f.season_type,...(f.before?{before:f.before}:{})})),req('/dvp?'+new URLSearchParams({team:home,last:f.last,season_type:f.season_type,...(f.before?{before:f.before}:{})})),req('/dvp?'+new URLSearchParams({team:away,last:f.last,season_type:f.season_type,...(f.before?{before:f.before}:{})}))]);state.matchupIntel={summary,homeDvp,awayDvp}}catch(ex){console.warn('Matchup context unavailable',ex)}}if(request!==finderRequest||page!==state.page||game!==state.selectedGame?.id)return;render();if(scrollToResults)$('#player-results')?.scrollIntoView({block:'start',behavior:matchMedia('(prefers-reduced-motion: reduce)').matches?'auto':'smooth'});}
+async function search(scrollToResults=true){
+ const f=readFilters(),request=++finderRequest,sport=state.sport,game=state.selectedGame?.id,page=state.page;
+ const current=()=>request===finderRequest&&sport===state.sport&&game===state.selectedGame?.id&&page===state.page;
+ state.finderLoading=true;state.results=null;state.matchupIntel=null;render();
+ const q=new URLSearchParams({sport,player:f.player||'',teams:state.matchup,stat:f.stat,threshold:f.threshold,last:f.last,venue:f.venue,season_type:f.season_type,min_minutes:f.min_minutes,min_rate:f.min_rate,max_rate:f.max_rate,comparison:f.comparison||'at_least',opponent:f.opponent||''});
+ if(state.selectedGame)q.set('game_id',state.selectedGame.id);if(f.season)q.set('season',f.season);if(f.before)q.set('before',f.before);
+ try{const data=await req('/consistency?'+q);if(!current())return;state.results=data;state.expanded=null;}
+ catch(error){if(current())notify(error.message,true);}
+ finally{if(current()){state.finderLoading=false;render();if(scrollToResults)$('#player-results')?.scrollIntoView({block:'start',behavior:matchMedia('(prefers-reduced-motion: reduce)').matches?'auto':'smooth'});}}
+}
+
 function betMarketNames(sport){return ['Moneyline','Spread','Total Points',...(sport==='NBA'?nbaStats:sport==='NFL'?nflStats.filter(x=>x[0]!=='targets'):[]).map(x=>x[1]),'Other']}
 function betDialog(id=null){const b=id?state.bets.find(b=>b.id==id):null;state.dialog=id||'new'; const todayVal=b?.placed_at||today();
  $('#modal-root').innerHTML=`<div class="modal-backdrop" id="backdrop"><div class="modal" role="dialog" aria-modal="true"><div class="row-between"><h2>${b?'Edit Wager':'Log a New Wager'}</h2><button class="btn btn-small" data-action="close-dialog">✕</button></div><form id="bet-form" class="stack"><div class="form-grid">
@@ -228,7 +239,7 @@ document.addEventListener('click',async e=>{const el=e.target.closest('[data-act
  else if(action==='export-bets'){window.location.href='/api/bets/export'}
  else if(action==='schedule-day'){setScheduleDate(el.dataset.date)}
  else if(action==='sport'||action==='match-sport'){saveFinder();state.sport=el.dataset.sport;if(action==='sport')state.page=state.sport==='NFL'?'nfl':'consistency';rememberLeague(state.sport);restoreFinder(state.sport);state.selectedGame=null;state.matchup='';state.customTeams='';state.results=null;state.scheduleDate=validScheduleDate(state.scheduleDate);render();await loadSelectableGames();refreshLiveScores()}
- else if(action==='quick-games'){$('#f-last').value=el.dataset.games;updateSearchPreview()}else if(action==='clear-filter')resetFilters();else if(action==='finder-mode'){state.finderMode=el.dataset.mode;render()}else if(action==='finder-profile')await openFinderProfile();else if(action==='run-filter')await op('run-filter',search);
+ else if(action==='quick-games'){$('#f-last').value=el.dataset.games;updateSearchPreview()}else if(action==='clear-filter')resetFilters();else if(action==='finder-mode'){invalidateFinderResults();state.finderMode=el.dataset.mode;render()}else if(action==='finder-profile')await openFinderProfile();else if(action==='run-filter')await search();
  else if(action==='show-logs'){state.expanded=state.expanded===Number(el.dataset.index)?null:Number(el.dataset.index);render()}
  else if(action==='ladder')await ladder(el);
  else if(action==='pick-game')await selectGameForStats(el);
@@ -241,7 +252,7 @@ document.addEventListener('click',async e=>{const el=e.target.closest('[data-act
  else if(action==='template')window.location.href='/api/data/template?sport='+$('#f-import-sport').value;
  else if(action==='refresh-all'){await refresh();notify('Data counters refreshed')}
  }catch(err){notify(err.message,true)}});
-document.addEventListener('input',e=>{if(['f-player','f-threshold','f-last','f-min_rate','f-max_rate'].includes(e.target.id)){state.filters[e.target.id.slice(2)]=e.target.value;saveFinder()}if(['f-stat','f-threshold','f-last','f-min_rate','f-max_rate','f-over-line'].includes(e.target.id))updateSearchPreview();if(['bet-stake','bet-odds','bet-payout','bet-status'].includes(e.target.id))updateBetPreview()});
+document.addEventListener('input',e=>{if(['f-player','f-threshold','f-last','f-min_rate','f-max_rate'].includes(e.target.id)){state.filters[e.target.id.slice(2)]=e.target.value;invalidateFinderResults();saveFinder()}if(['f-stat','f-threshold','f-last','f-min_rate','f-max_rate','f-over-line'].includes(e.target.id))updateSearchPreview();if(['bet-stake','bet-odds','bet-payout','bet-status'].includes(e.target.id))updateBetPreview()});
 document.addEventListener('keydown',e=>{if(e.target.id==='f-player'&&e.key==='Enter'&&!e.isComposing){e.preventDefault();openFinderProfile()}});
 document.addEventListener('change',e=>{
  if(e.target.matches('#bet-form select[name="sport"]')){const picker=$('#bet-form select[name="market"]');picker.innerHTML=betMarketNames(e.target.value).map(name=>`<option>${esc(name)}</option>`).join('')}
@@ -265,10 +276,10 @@ document.addEventListener('change',e=>{
    if($('#f-before'))$('#f-before').value=selected?gameDay(selected):'';state.filters.before=selected?gameDay(selected):'';
    try{readFilters()}catch{}
    render();
-   if(selected){loadGameOverview(true);loadBoxScore();if(state.finderMode==='consistency'&&state.filters.threshold!==''&&state.filters.last!=='')op('find-players',()=>search(false))}
+   if(selected){loadGameOverview(true);loadBoxScore()}
    if(selected)loadSnapshots().then(()=>{const panel=$('#selected-game-host');if(panel)panel.innerHTML=snapshotContents()});
  }
- if(e.target.id.startsWith('f-')&&$('#f-last')){try{readFilters()}catch{}}
+ if(e.target.id.startsWith('f-')&&$('#f-last')&&e.target.id!=='f-result-sort'){invalidateFinderResults();try{readFilters()}catch{}}
  if(['f-stat','f-threshold','f-last','f-min_rate','f-max_rate','f-over-line'].includes(e.target.id))updateSearchPreview();
  if(['f-sync-sport','f-hist-sport','f-import-sport'].includes(e.target.id)){rememberLeague(e.target.value);for(const id of ['f-sync-sport','f-hist-sport','f-import-sport']){const item=document.getElementById(id);if(item)item.value=state.syncSport}}
 });

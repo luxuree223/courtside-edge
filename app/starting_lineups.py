@@ -8,6 +8,7 @@ import hashlib
 import json
 from pathlib import Path
 from zoneinfo import ZoneInfo
+from bs4 import BeautifulSoup,SoupStrainer
 from . import db, primary_positions
 
 POSITIONS={'PG','SG','SF','PF','C'}
@@ -63,6 +64,65 @@ async def fetch_day(client,date):
     return payload,hashlib.sha256(response.content).hexdigest()
 
 
+def archived_game_url(game,nba_game_id):
+    aliases={'GS':'GSW','NY':'NYK','SA':'SAS','NO':'NOP','UTAH':'UTA','PHX':'PHX','WSH':'WAS'}
+    away=aliases.get(game['away_abbr'],game['away_abbr']).lower()
+    home=aliases.get(game['home_abbr'],game['home_abbr']).lower()
+    if not str(nba_game_id).isdigit():raise ValueError('Official NBA game identity is unavailable.')
+    return f'https://www.nba.com/game/{away}-vs-{home}-{nba_game_id}/box-score'
+
+
+def parse_archived_game(html,game,nba_game_id,url):
+    """NBA's historical game header retains explicit confirmed starting slots.
+
+    The ordinary NBA box-score F/G fields are deliberately ignored. We accept
+    only the separate game-specific confirmed starters, tied to this date,
+    official game ID, matchup and final score. reconcile() then matches all ten
+    actual ESPN starter identities and the saved scoring rosters as usual.
+    """
+    script=BeautifulSoup(html,'html.parser',parse_only=SoupStrainer('script',id='__NEXT_DATA__')).find('script',id='__NEXT_DATA__')
+    if not script:raise ValueError('NBA historical lineup data is unavailable.')
+    page=json.loads(script.get_text())['props']['pageProps']
+    header=(page.get('blueprintReport') or {}).get('game_header') or {}
+    box=page.get('game') or {}
+    from .providers import iso_day
+    date=game.get('game_date') or iso_day(game['starts_at'],'America/New_York')
+    if str(header.get('gameId'))!=str(nba_game_id) or str(box.get('gameId'))!=str(nba_game_id):raise ValueError('Historical lineup game identity does not match.')
+    if header.get('gameStatus')!=3 or box.get('gameStatus')!=3:raise ValueError('NBA historical game is not final.')
+    if iso_day(header.get('gameTimeUTC'),'America/New_York')!=date or not str(header.get('gameCode','')).startswith(date.replace('-','')+'/'):raise ValueError('Historical lineup date does not match.')
+    output={'gameId':str(nba_game_id)}
+    for side in ('away','home'):
+        original=header.get(side+'Team') or {};team=original.get('teamTricode','')
+        if db.normalize_team('NBA',team)!=db.normalize_team('NBA',game[side+'_abbr']):raise ValueError('Historical lineup teams do not match.')
+        if original.get('score')!=game.get(side+'_score'):raise ValueError('Historical lineup final score does not match.')
+        starters=original.get('starters') or []
+        if len(starters)!=5 or {p.get('position') for p in starters}!=POSITIONS or any(p.get('status')!='Confirmed' for p in starters):raise ValueError('NBA historical starting slots are not confirmed.')
+        people={str(p.get('personId')):p for p in (box.get(side+'Team') or {}).get('players',[])}
+        players=[]
+        for p in starters:
+            person=people.get(str(p.get('personId')))
+            if not person:raise ValueError('Historical starter identity is absent from the NBA box score.')
+            # Names come from the matched official box-score person ID, never
+            # a name-only guess about a roster or a current starting lineup.
+            name=(str(person.get('firstName',''))+' '+str(person.get('familyName',''))).strip()
+            if not name:raise ValueError('Historical starter name is unavailable.')
+            players.append({'personId':p['personId'],'playerName':name,'position':p['position'],
+                            'lineupStatus':'Confirmed','timestamp':header.get('actualEndTimeUTC') or header['gameTimeUTC']})
+        output[side+'Team']={'teamAbbreviation':team,'players':players}
+    return {'games':[output],'_source_url':url}
+
+
+async def fetch_archived_game(client,game,daily_payload):
+    pair=(db.normalize_team('NBA',game['away_abbr']),db.normalize_team('NBA',game['home_abbr']))
+    matches=[g for g in daily_payload.get('games',[]) if
+             (db.normalize_team('NBA',g.get('awayTeam',{}).get('teamAbbreviation')),db.normalize_team('NBA',g.get('homeTeam',{}).get('teamAbbreviation')))==pair]
+    if len(matches)!=1:raise ValueError('No unique historical NBA game identity for this date and matchup.')
+    gid=matches[0].get('gameId');url=archived_game_url(game,gid)
+    response=await client.get(url,timeout=25,follow_redirects=True);response.raise_for_status()
+    payload=parse_archived_game(response.text,game,gid,url)
+    return payload,hashlib.sha256(response.content).hexdigest()
+
+
 def _box_people(summary,team):
     found={}
     for section in (summary.get('boxscore') or {}).get('players',[]):
@@ -81,7 +141,7 @@ def reconcile(game,summary,logs,payload,source_hash='',error=''):
     """Persist a verified lineup only when source, participants and scoring agree."""
     from .providers import iso_day
     date=game.get('game_date') or iso_day(game['starts_at'],'America/New_York')
-    stamp=dt.datetime.now(dt.timezone.utc).isoformat();url=source_url(date);issues=[]
+    stamp=dt.datetime.now(dt.timezone.utc).isoformat();url=payload.get('_source_url') or source_url(date);issues=[]
     pair=(db.normalize_team('NBA',game['away_abbr']),db.normalize_team('NBA',game['home_abbr']))
     matches=[g for g in payload.get('games',[]) if
         (db.normalize_team('NBA',g.get('awayTeam',{}).get('teamAbbreviation')),db.normalize_team('NBA',g.get('homeTeam',{}).get('teamAbbreviation')))==pair]

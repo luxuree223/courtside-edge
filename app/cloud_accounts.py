@@ -3,13 +3,14 @@
 All Firestore operations use the signed-in person's ID token and security rules.
 No service account, owner database or admin credentials are exposed to members.
 """
-import asyncio,hashlib,json,os,time
+import asyncio,hashlib,json,os,time,zlib,binascii
 from urllib.parse import quote
 import httpx
 from fastapi.responses import JSONResponse
-from . import db,accounts,personal_backup
+from . import db,accounts,personal_backup,research_archive
 
 _identities={};_locks={}
+_archive_hashes={};_archive_saved={};_archive_warnings={}
 COOKIE='courtside_cloud_session'
 class CloudError(Exception):
     def __init__(self,message,status=503):self.message=message;self.status=status
@@ -48,12 +49,21 @@ async def read(user,token):
         if r.status_code==404:return None,None
         if r.status_code in (401,403):raise CloudError('Cloud storage access was denied. Check sign-in and the Firebase security rules.',401 if r.status_code==401 else 503)
         if r.status_code!=200:raise CloudError('Cloud storage is unavailable. Your saved tracker has not been changed.')
-        doc=r.json();data=json.loads(doc['fields']['payload']['stringValue'])
-        return personal_backup.validate(data),doc['updateTime']
+        doc=r.json();data=json.loads(doc['fields']['payload']['stringValue']);archive=None
+        if data.get('format')=='courtside-cloud-account-v2':
+            archive=data.get('positions');data=data['tracker']
+        tracker=personal_backup.validate(data)
+        _archive_hashes[user['cloud_uid']]=research_archive.fingerprint(archive)
+        if archive:
+            try:research_archive.restore(archive)
+            except (ValueError,TypeError,KeyError,zlib.error,binascii.Error):
+                _archive_warnings[user['cloud_uid']]='Saved position evidence could not be restored; source records will be checked again.'
+        return tracker,doc['updateTime']
     except (httpx.HTTPError,ValueError,KeyError):raise CloudError('Your cloud tracker could not be loaded safely. Retry; no replacement tracker was saved.')
 
 async def write(user,token,data,revision):
-    payload=json.dumps(personal_backup.validate(data),separators=(',',':'),allow_nan=False)
+    archive=research_archive.capture()
+    payload=json.dumps({'format':'courtside-cloud-account-v2','tracker':personal_backup.validate(data),'positions':archive},separators=(',',':'),allow_nan=False)
     if len(payload.encode())>750000:raise CloudError('This tracker exceeds the current cloud backup size limit. Save a JSON backup before reducing long notes.',413)
     query={'currentDocument.updateTime':revision} if revision else {'currentDocument.exists':'false'}
     try:
@@ -64,10 +74,13 @@ async def write(user,token,data,revision):
             except ValueError:pass
         if conflict:raise CloudError('This tracker changed on another device. Refresh it before retrying.',409)
         if r.status_code!=200:raise CloudError('The cloud save could not be confirmed. Refresh your tracker before retrying.')
+        _archive_hashes[user['cloud_uid']]=research_archive.fingerprint(archive)
+        _archive_saved[user['cloud_uid']]=time.monotonic()
+        _archive_warnings.pop(user['cloud_uid'],None)
     except httpx.HTTPError:
         # A response can be lost after a successful write. Check before reporting failure.
         stored,_=await read(user,token)
-        if stored and personal_backup.fingerprint(stored)==personal_backup.fingerprint(data):return
+        if stored and personal_backup.fingerprint(stored)==personal_backup.fingerprint(data) and _archive_hashes.get(user['cloud_uid'])==research_archive.fingerprint(archive):return
         raise CloudError('The cloud save could not be confirmed. Refresh your tracker before retrying.')
 
 def _response(error):return JSONResponse({'detail':error.message},status_code=error.status,headers={'Cache-Control':'no-store','Vary':'Authorization'})
@@ -104,6 +117,20 @@ async def handle(request,call_next):
                 try:await write(user,token,personal_backup.capture(),revision)
                 except CloudError:
                     personal_backup.apply(stored or before);raise
+            elif path=='/api/data/collection-status' and response.status_code<400 and stored is not None:
+                # Polling checkpoints verified assignments to durable storage,
+                # including partial jobs. No daily manual visit is required to
+                # preserve evidence already collected by this account.
+                from . import main
+                uid=user['cloud_uid']
+                if not main._collection_status['running'] or time.monotonic()-_archive_saved.get(uid,0)>30:
+                    try:
+                        archive=research_archive.capture()
+                        if research_archive.fingerprint(archive)!=_archive_hashes.get(uid):
+                            await write(user,token,stored,revision)
+                    except (CloudError,ValueError) as ex:
+                        _archive_warnings[uid]=ex.message if isinstance(ex,CloudError) else str(ex)
+                    main._collection_status['storage_issues']=list(_archive_warnings.values())
             response.headers['Cache-Control']='no-store';response.headers['Vary']='Authorization';return response
     except CloudError as ex:return _response(ex)
     finally:

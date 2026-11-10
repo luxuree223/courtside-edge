@@ -229,13 +229,15 @@ async def sync_dates(sport,start,end,include_scheduled=True,skip_saved=False,pro
     a=datetime.date.fromisoformat(start);b=datetime.date.fromisoformat(end)
     if b<a or (b-a).days>31:raise ValueError('Date range must be 1–32 days')
     total_games=total_logs=0;errors=[];lineup_issues=[]
-    from . import starting_lineups
+    from . import starting_lineups, sync_integrity
     async with httpx.AsyncClient(headers={'User-Agent':USER_AGENT,'Accept':'application/json'}) as client:
         for day in (a+datetime.timedelta(days=i) for i in range((b-a).days+1)):
             stamp=day.strftime('%Y%m%d')
             day_error_start=len(errors)
             try:
                 payload=await fetch_json(client,f'{BASE}/{SPORT_PATH[sport]}/scoreboard?dates={stamp}&limit=1000')
+                if not isinstance(payload,dict) or not isinstance(payload.get('events'),list):
+                    raise ValueError('The schedule response is incomplete; this date will be checked again.')
                 games=parse_scoreboard(payload,sport)
                 timezone='America/New_York' if sport=='NBA' else store.get_settings().get('timezone','America/Chicago')
                 for game in games:game['game_date']=iso_day(game['starts_at'],timezone)
@@ -258,7 +260,7 @@ async def sync_dates(sport,start,end,include_scheduled=True,skip_saved=False,pro
                     except Exception:lineup_error='Confirmed NBA starting positions could not be downloaded.'
                 for g in games:
                     if g['status']!='final':continue
-                    if skip_saved and day<datetime.date.today()-datetime.timedelta(days=2):
+                    if skip_saved and day<b-datetime.timedelta(days=2):
                         with store.research_connect() as saved:
                             exists=saved.execute('SELECT 1 FROM player_logs WHERE sport=? AND game_id=? LIMIT 1',(sport,g['id'])).fetchone()
                         if exists and sport=='NBA':
@@ -270,23 +272,32 @@ async def sync_dates(sport,start,end,include_scheduled=True,skip_saved=False,pro
                         if exists and sport=='NBA':
                             with store.research_connect() as saved:
                                 if saved.execute("SELECT 1 FROM player_logs WHERE sport='NBA' AND game_id=? AND minutes>0 AND (fgm IS NULL OR fg3a IS NULL) LIMIT 1",(g['id'],)).fetchone():exists=None
+                        if exists and sport=='NFL' and not sync_integrity.saved(g):exists=None
                         if exists:continue
                     # An empty or partial game summary must not overwrite existing logs
                     try:
                         summary=await fetch_json(client,f'{BASE}/{SPORT_PATH[sport]}/summary?event={g["id"]}')
                         logs=nba_player_logs(summary,g) if sport=='NBA' else nfl_player_logs(summary,g)
                         teams=nba_team_logs(summary,g) if sport=='NBA' else []
-                        complete=sport!='NBA' or starting_lineups.complete_score(g,logs)
+                        complete=starting_lineups.complete_score(g,logs) if sport=='NBA' else sync_integrity.complete(summary,g,logs)
                         if logs and complete:
                             with store.research_connect() as db:
                                 # A complete replacement also removes stale public
                                 # participants left behind by an earlier summary.
-                                if sport=='NBA':db.execute("DELETE FROM player_logs WHERE sport='NBA' AND game_id=? AND source='ESPN'",(g['id'],))
+                                db.execute("DELETE FROM player_logs WHERE sport=? AND game_id=?",(sport,g['id']))
                                 store.save_logs(db,logs)
                                 if teams:store.save_team_logs(db,teams)
+                                if sport=='NFL':sync_integrity.record(db,g)
                             total_logs+=len(logs)
-                            if g['id'] in lineup_games:lineup_issues.extend(f'{g["id"]} {issue}' for issue in starting_lineups.reconcile(g,summary,logs,lineup_payload,lineup_hash,lineup_error))
-                        else: errors.append(f'{g["id"]}: player statistics do not reconcile to the final score' if logs else f'{g["id"]}: no player statistics available yet')
+                            if g['id'] in lineup_games:
+                                issues=starting_lineups.reconcile(g,summary,logs,lineup_payload,lineup_hash,lineup_error)
+                                if issues:
+                                    try:
+                                        archived,digest=await starting_lineups.fetch_archived_game(client,g,lineup_payload)
+                                        issues=starting_lineups.reconcile(g,summary,logs,archived,digest)
+                                    except Exception as ex:issues.append('Historical NBA lineup: '+str(ex)[:160])
+                                lineup_issues.extend(f'{g["id"]} {issue}' for issue in issues)
+                        else: errors.append(f'{g["id"]}: player statistics do not reconcile to the final team box score' if logs else f'{g["id"]}: no player statistics available yet')
                     except Exception as ex:
                         errors.append(f'{g["id"]}: {str(ex)[:130]}')
                     await asyncio.sleep(.12)

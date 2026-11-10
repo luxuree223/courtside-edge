@@ -49,12 +49,20 @@ async def refresh(sport,teams=None):
                 try:
                     roster=await providers.fetch_json(client,base+'/roster');items=[]
                     for group in roster.get('athletes',[]):items.extend(group.get('items',[group]))
-                    precise={};primary_url=''
+                    precise={};primary_url='';primary={};roster_url=''
                     if sport=='NBA':
                         from . import primary_positions
                         code=db.normalize_team(sport,abbr)
                         with db.research_connect() as c:
                             ensure(c,sport);cached={r['player_id']:dict(r) for r in c.execute("SELECT * FROM player_positions WHERE sport='NBA' AND team=?",(code,))}
+                            # Current rosters omit waived/recently traded players.
+                            # Their earlier games still belong in this season's
+                            # defense totals and require the same primary check.
+                            season_start=f'{primary_positions.season()-1}-07-01'
+                            seen={str(p.get('id','')) for p in items}
+                            for row in c.execute("SELECT player_id,player FROM player_logs WHERE sport='NBA' AND team=? AND game_date>=? AND season_type IN ('regular','postseason') ORDER BY game_date DESC",(code,season_start)):
+                                if row['player_id'] not in seen:
+                                    items.append({'id':row['player_id'],'displayName':row['player']});seen.add(row['player_id'])
                         cutoff=(dt.datetime.now(dt.timezone.utc)-dt.timedelta(days=1)).isoformat()
                         needs=[p for p in items if str(p.get('id','')) not in cached or cached[str(p.get('id',''))]['observed_at']<cutoff]
                         if needs:
@@ -63,6 +71,16 @@ async def refresh(sport,teams=None):
                                 response=await client.get(primary_url);response.raise_for_status()
                                 precise=primary_positions.parse_secondary_roster(response.text,primary_positions.season())
                             except Exception:pass  # Keep sourced cached records; report only actual gaps below.
+                        # A new signing's profile may still list college roles
+                        # or multiple positions. The current NBA team's roster
+                        # publishes the same explicit primary slots as our
+                        # reviewed directory. Use it before the profile lookup.
+                        if any(str(p.get('id','')) not in cached and str(p.get('id','')) not in fallback for p in items):
+                            roster_url=primary_positions.roster_url(code,primary_positions.season())
+                            try:
+                                response=await client.get(roster_url);response.raise_for_status()
+                                primary=primary_positions.parse_roster(response.text,primary_positions.season())
+                            except Exception:pass
                     stamp=dt.datetime.now(dt.timezone.utc).isoformat();rows=[]
                     for p in items:
                         pid=str(p.get('id',''))
@@ -82,8 +100,11 @@ async def refresh(sport,teams=None):
                                         c.execute('INSERT OR REPLACE INTO position_proposals VALUES (?,?,?,?,?,?)',(sport,pid,code,pos,source,stamp))
                                 continue
                             if not prior:
-                                async with profile_limit:
-                                    profile=await primary_positions.lookup_profile(client,p.get('displayName') or p.get('fullName',''))
+                                name=p.get('displayName') or p.get('fullName','')
+                                pos=primary.get(primary_positions.name_key(name))
+                                profile={'position':pos,'source_url':roster_url} if pos else None
+                                if not profile:
+                                    async with profile_limit:profile=await primary_positions.lookup_profile(client,name)
                                 # A generic G/F, a depth-chart slot or an unsupported
                                 # secondary-feed label cannot establish a primary role.
                                 pos=profile['position'] if profile else None

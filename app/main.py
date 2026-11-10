@@ -104,17 +104,11 @@ async def nightly_scheduler():
                 with db.connect() as connection:
                     marker=connection.execute("SELECT value FROM settings WHERE key='last_nightly_success'").fetchone()
                 if (not marker or marker[0]!=today) and not _sync_lock.locked() and not _collection_status['running']:
-                    async with _sync_lock:
-                        with db.connect() as connection:
-                            connection.execute("INSERT INTO settings(key,value) VALUES ('last_nightly_attempt',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",(today,))
-                        success=True
-                        for sport in ['NBA','NFL']:
-                            result=await providers.sync_dates(sport,(now.date()-datetime.timedelta(days=2)).isoformat(),now.date().isoformat())
-                            success=success and not result.get('errors') and not result.get('lineup_issues')
-                            await position_index.refresh(sport)
-                        if success:
-                            with db.connect() as connection:
-                                connection.execute("INSERT INTO settings(key,value) VALUES ('last_nightly_success',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",(today,))
+                    with db.connect() as connection:
+                        connection.execute("INSERT INTO settings(key,value) VALUES ('last_nightly_attempt',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",(today,))
+                    # A sleeping host can miss any number of nights. Use the
+                    # same season-wide repair as a returning sign-in/manual sync.
+                    await start_catchup('nightly')
         except asyncio.CancelledError:raise
         except Exception as ex:
             with db.connect() as connection:
@@ -134,7 +128,7 @@ async def lifespan(app):
         try:await _collection_task
         except asyncio.CancelledError:pass
 
-app=FastAPI(title='Courtside Edge',version='0.18.7',lifespan=lifespan)
+app=FastAPI(title='Courtside Edge',version='0.18.8',lifespan=lifespan)
 app.mount('/static',StaticFiles(directory=str(ROOT/'static')),name='static')
 
 @app.middleware('http')
@@ -209,7 +203,7 @@ async def next_team_game(sport:str,team:str,refresh:bool=False):
 def index():return FileResponse(ROOT/'static'/'index.html',headers={'Cache-Control':'no-store'})
 
 @app.get('/api/health')
-def health(request:Request):return {'ok':True,'version':'0.18.7',**({'data':db.data_counts()} if not cloud_accounts.enabled() and (request.state.account or not accounts.configured()) else {})}
+def health(request:Request):return {'ok':True,'version':'0.18.8',**({'data':db.data_counts()} if not cloud_accounts.enabled() and (request.state.account or not accounts.configured()) else {})}
 
 @app.get('/api/cloud/config')
 def cloud_config():
@@ -448,28 +442,43 @@ async def _login_collection(plans):
     try:
         async with _sync_lock:
             for sport,start,end in plans:
+                _collection_status['current_sport']=sport
                 _collection_status['message']='Checking '+sport+' season game logs…'
-                def progress(date):
-                    _collection_status['completed_days']+=1
-                    _collection_status['message']=f'{sport}: checked games through {date}'
                 for a,b in date_chunks(start,end):
-                    result=await providers.sync_dates(sport,a.isoformat(),b.isoformat(),skip_saved=True,progress=progress)
-                    _collection_status['games']+=result['games'];_collection_status['player_logs']+=result['player_logs']
-                    _collection_status['errors'].extend(result.get('errors',[])[:10])
-                    _collection_status['errors'].extend(('Lineup check: '+x for x in result.get('lineup_issues',[])[:10]))
+                    base=_collection_status['completed_days'];size=(b-a).days+1
+                    def progress(date):
+                        done=(datetime.date.fromisoformat(date)-a).days+1
+                        _collection_status['completed_days']=base+min(size,max(0,done))
+                        _collection_status['message']=f'{sport}: checked games through {date}'
+                    try:
+                        result=await providers.sync_dates(sport,a.isoformat(),b.isoformat(),skip_saved=True,progress=progress)
+                        _collection_status['games']+=result['games'];_collection_status['player_logs']+=result['player_logs']
+                        _collection_status['errors'].extend(result.get('errors',[]))
+                        _collection_status['errors'].extend(('Lineup check: '+x for x in result.get('lineup_issues',[])))
+                    except Exception as ex:
+                        _collection_status['errors'].append(f'{sport} {a}–{b}: {str(ex)[:180]}')
+                    finally:_collection_status['completed_days']=base+size
                 _collection_status['message']='Verifying '+sport+' player positions against ESPN rosters…'
-                result=await position_index.refresh(sport)
-                _collection_status['errors'].extend(result['issues'][:10])
-        _collection_status['message']='Updating NBA.com and Hollinger pace stats…'
-        _collection_status['pace_issues']=await pace.sync()
+                try:
+                    result=await position_index.refresh(sport)
+                    _collection_status['errors'].extend(result['issues'])
+                except Exception as ex:_collection_status['errors'].append(sport+' roster check: '+str(ex)[:180])
+            _collection_status['message']='Updating NBA.com and Hollinger pace stats…'
+            try:_collection_status['pace_issues']=await pace.sync()
+            except Exception as ex:_collection_status['pace_issues']=[str(ex)[:180]]
         counts=db.data_counts()
         _collection_status['failed']=bool(_collection_status['errors']) and not any(counts[s]['player_logs'] for s in ('NBA','NFL'))
-        _collection_status['outcome']='failed' if _collection_status['failed'] else 'partial' if _collection_status['errors'] else 'complete'
-        if not _collection_status['failed']:research_ready.finish()
-        _collection_status['message']='Sync complete' if not _collection_status['errors'] else 'Sync finished with source gaps. Review the details before researching.'
+        issues=_collection_status['errors']+_collection_status.get('pace_issues',[])
+        _collection_status['outcome']='failed' if _collection_status['failed'] else 'partial' if issues else 'complete'
+        research_ready.finish(complete=not issues,issues=issues)
+        if not issues and _collection_status['mode']=='nightly':
+            with db.connect() as connection:
+                connection.execute("INSERT INTO settings(key,value) VALUES ('last_nightly_success',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",(tz_today().date().isoformat(),))
+        _collection_status['message']='Season results checked through '+max(end for _,_,end in plans).isoformat() if not issues else 'Sync finished with source gaps. Retry sync checks every missing game again.'
     except Exception as ex:
         _collection_status['failed']=True;_collection_status['outcome']='failed'
         _collection_status['errors'].append(str(ex)[:180]);_collection_status['message']='Sync could not finish. Retry to complete the update.'
+        research_ready.finish(complete=False,issues=_collection_status['errors'])
     finally:_collection_status['running']=False
 
 @app.get('/api/data/readiness')
@@ -478,24 +487,45 @@ def research_readiness():
 
 @app.post('/api/data/login-sync')
 async def login_sync(force:bool=False):
-    global _collection_status,_collection_task
     if _collection_status['running']:return dict(_collection_status)
     ready=research_ready.status()
     if not force and ready['ready'] and not ready['needs_update']:
         return {'running':False,'outcome':'complete','failed':False,'errors':[],'message':'Research is up to date','checked_at':ready['checked_at']}
-    if _sync_lock.locked():raise HTTPException(409,'A scheduled stats update is finishing. Retry the sign-in sync shortly.')
-    plans=[(sport,*current_season_dates(sport)) for sport in ('NBA','NFL')]
-    _collection_status={'running':True,'mode':'login','sport':'NBA + NFL','completed_days':0,
+    return await start_catchup('login')
+
+
+async def start_catchup(mode):
+    global _collection_status,_collection_task
+    if _collection_status['running'] or _sync_lock.locked():raise HTTPException(409,'A stats update is already running. Its progress is shown on Update Game Results.')
+    plans=catchup_plans()
+    _collection_status={'running':True,'mode':mode,'sport':'NBA + NFL','completed_days':0,
+        'start':min(start for _,start,_ in plans).isoformat(),'end':max(end for _,_,end in plans).isoformat(),
+        'plans':[{'sport':sport,'start':start.isoformat(),'end':end.isoformat()} for sport,start,end in plans],
         'total_days':sum((end-start).days+1 for _,start,end in plans),'games':0,'player_logs':0,'errors':[],
-        'message':'Checking this season’s ESPN NBA and NFL game logs…'}
+        'pace_issues':[],'message':'Checking the full NBA and NFL seasons for missing games…'}
     _collection_task=asyncio.create_task(_login_collection(plans))
     return dict(_collection_status)
 
+
+def catchup_plans():
+    # Returning after a season boundary must also collect the end of the old
+    # season, not jump straight to the new opening night.
+    ready=research_ready.status();checked=ready.get('checked_at');last=None
+    if checked:
+        try:last=datetime.datetime.fromisoformat(checked.replace('Z','+00:00')).date()-datetime.timedelta(days=2)
+        except ValueError:pass
+    plans=[]
+    for sport in ('NBA','NFL'):
+        start,end=current_season_dates(sport)
+        if last and last<start:start=last
+        plans.append((sport,start,end))
+    return plans
+
 @app.post('/api/data/sync-tonight')
 async def sync_tonight():
-    today=tz_today().date()
-    # Include recent dates for late-finishing games and official corrections.
-    return await start_collection('NBA',today-datetime.timedelta(days=2),today,both=True)
+    # Never assume the user visited yesterday. Enumerate every season date;
+    # providers skip only saved, validated games and retry incomplete records.
+    return await start_catchup('catchup')
 
 @app.post('/api/data/import')
 async def csv_import(sport:str=Form('NBA'),season_type:str=Form('regular'),file:UploadFile=File(...)):

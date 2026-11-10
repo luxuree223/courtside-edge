@@ -147,7 +147,10 @@ def defense(sport,position,stat,season=None,season_type='regular',research_windo
             if detail['usable']:known+=1;complete_total+=detail['total']
         result.append({'team':team,'name':names.get(team,team),'total':round(total,3) if covered else None,
                        'complete_total':round(complete_total,3) if known else None,'missing_lineup_games':missing_lineups,
-                       'average':round(complete_total/known,3) if known else None,'usable_games':known,
+                       # A verified subset is not the season/recent-window
+                       # allowance. Never rank an incomplete NBA sample as if
+                       # missing games had not occurred.
+                       'average':round(complete_total/known,3) if known and (sport!='NBA' or known==len(entries)) else None,'usable_games':known,
                        'games_with_logs':covered,'expected_games':len(entries),'missing_stat_rows':unknown_stat,
                        'unclassified_rows':unknown_position,'partial':known<len(entries),
                        'sources':sorted(sources),'source_urls':sorted(urls)[:5]})
@@ -159,7 +162,7 @@ def defense(sport,position,stat,season=None,season_type='regular',research_windo
         r['rank']=rank;previous=r['average']
     data={'sport':sport,'position':position,'stat':stat,'label':db.STATS[sport][stat],
             'window':w,'rows':result,'ranked_teams':sum(r['rank'] is not None for r in result),
-            'note':'Opposing players are combined within each game, then those game totals are averaged over usable games. NBA starters use NBA.com’s confirmed starting slot for that specific game, matched to the final ESPN starters; bench players keep their sourced primary position. Each player counts in one position per game. Projected lineups, emergency depth-chart roles and generic G/F labels are never used to guess a slot. NBA scoring rosters must reconcile to the final team score. Missing lineups, unresolved relevant positions or missing stats exclude the game from that average, never count as zero. Tap an average for its players, totals, sources and denominator. This does not measure possession-by-possession matchups.'}
+            'note':'Opposing players are combined within each game, then those game totals are averaged over usable games. NBA starters use NBA.com’s confirmed starting slot for that specific game, matched to the final ESPN starters; bench players keep their sourced primary position. Each player counts in one position per game. Projected lineups, emergency depth-chart roles and generic G/F labels are never used to guess a slot. NBA scoring rosters must reconcile to the final team score. An NBA average stays unavailable until all completed games in the selected window have verified positions and the requested statistic; a smaller verified subset is never presented as the full average. Missing records never count as zero. Tap a cell for its players, totals, sources and denominator. This does not measure possession-by-possession matchups.'}
     if _audit_team:
         row=next(r for r in result if r['team']==_audit_team)
         data.update(team=_audit_team,name=names[_audit_team],average=row['average'],numerator=row['complete_total'],denominator=row['usable_games'],expected_games=row['expected_games'],games=audit_games)
